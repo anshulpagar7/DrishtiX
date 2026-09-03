@@ -1,0 +1,57 @@
+name: tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install runtime + API dependencies
+        # Training deps need a GPU and are not installed in CI.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-api.txt
+          pip install httpx
+
+      - name: Contract tests (week 1)
+        run: python -m tests.test_contract
+
+      - name: Fallback and metric tests (week 2)
+        run: python -m tests.test_week2
+
+      - name: Planner, fusion and render tests (week 3)
+        run: python -m tests.test_week3
+
+      - name: Integration seam and API tests (week 4)
+        run: python -m tests.test_week4
+
+      - name: Router and validator benchmark
+        run: python -m eval.run_eval
+
+      - name: Change localisation benchmark
+        run: python -m eval.change_eval
+
+      - name: Demo rehearsal
+        # Runs the exact sequence used on stage. If this fails, the demo
+        # would have failed in front of an evaluator instead.
+        run: python -m demo.script --no-images
+
+      - name: Byte-compile everything
+        run: python -m compileall -q .
