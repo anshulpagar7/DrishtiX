@@ -1,0 +1,13 @@
+# Week 2 training + VLM inference. Install ONLY where a GPU exists
+# (Kaggle / Colab). Do not put these in the app requirements - a teammate
+# without a GPU must still be able to run `streamlit run app.py`.
+-r requirements.txt
+
+torch>=2.2
+transformers>=4.45
+accelerate>=0.30
+peft>=0.11
+bitsandbytes>=0.43
+datasets>=2.19
+sentencepiece
+protobuf

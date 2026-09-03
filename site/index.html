@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DrishtiX — Ask the Earth a question</title>
+<meta name="description" content="An agentic vision-language assistant for satellite imagery. Smart India Hackathon 2026, SIH26167, ISRO.">
+
+<!-- Webfonts are progressive enhancement. The stacks below are chosen so the
+     page still reads correctly with the network off — which is the state a
+     demo laptop is usually in. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="assets/site.css">
+
+<style>
+:root{
+  /* Altitude is the palette. The page climbs through these. */
+  --range-dawn:#1B2A4A;
+  --range-mid:#0A1428;
+  --vacuum:#03060E;
+
+  --flame:#FF7A18;
+  --flame-core:#FFD166;
+  --ash:#C9D1D9;
+  --ash-dim:#6B7A8F;
+  --hull:#E8EAED;
+  --hull-shade:#9AA3AE;
+  --saffron:#FF9933;
+  --india-green:#138808;
+
+  --display:"Barlow Condensed","Helvetica Neue Condensed","Arial Narrow",
+            system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace;
+
+  --gutter:clamp(20px,5vw,72px);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--vacuum);
+  color:var(--ash);
+  font-family:var(--body);
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FLIGHT STAGE — sticky canvas the whole launch plays out on
+   ══════════════════════════════════════════════════════════════════ */
+
+#flight{height:760vh;position:relative}
+
+#stage{
+  position:sticky;top:0;height:100vh;overflow:hidden;
+  background:var(--range-dawn);
+}
+
+/* Sky is painted in layers; opacity of each is driven by altitude. */
+.sky{position:absolute;inset:0;will-change:opacity}
+#sky-dawn{
+  background:
+    radial-gradient(120% 70% at 50% 108%, #2E4372 0%, transparent 62%),
+    linear-gradient(180deg,#0E1A33 0%,#1B2A4A 55%,#33436B 100%);
+}
+#sky-high{
+  background:linear-gradient(180deg,#03060E 0%,#0A1428 60%,#16264A 100%);
+  opacity:0;
+}
+#sky-space{background:var(--vacuum);opacity:0}
+
+#stars{position:absolute;inset:0;opacity:0;will-change:opacity}
+
+/* ── Earth limb, arrives on orbital insertion ─────────────────── */
+#limb{
+  position:absolute;left:50%;bottom:0;
+  width:260vw;height:260vw;
+  transform:translate(-50%,100%);
+  border-radius:50%;
+  background:
+    radial-gradient(circle at 50% 8%, #4E7FB8 0%, #1E4F86 30%, #0B2B52 62%, #05162C 100%);
+  box-shadow:0 0 120px 30px rgba(90,160,235,.30);
+  opacity:0;will-change:transform,opacity;
+}
+#limb::after{ /* atmospheric rim */
+  content:"";position:absolute;inset:-2px;border-radius:50%;
+  box-shadow:inset 0 14px 40px rgba(150,205,255,.55);
+}
+
+/* ── Launch complex ────────────────────────────────────────────
+   Built from the real site rather than generic architecture. Sriharikota is
+   a low barrier island (1 m elevation) between the Pulicat lagoon and the
+   Bay of Bengal, forested with the casuarina and eucalyptus plantation that
+   predates the spaceport. Horizon datum is 19vh; everything registers to it.
+
+   The signature is the Mobile Service Tower. On a real pad it rolls back on
+   rails before launch, so here it retreats during the terminal count instead
+   of standing there as scenery. ── */
+#complex{
+  position:absolute;left:0;right:0;bottom:0;height:60vh;
+  will-change:transform,opacity;
+  z-index:0;pointer-events:none;
+}
+
+/* Dawn breaking over the Bay of Bengal - launches fly east over water. */
+#dawn-glow{
+  position:absolute;right:-10%;bottom:17vh;
+  width:75%;height:26vh;
+  background:radial-gradient(ellipse 60% 100% at 72% 100%,
+    rgba(255,164,92,.30) 0%,
+    rgba(226,132,86,.16) 34%,
+    rgba(120,110,150,.06) 62%,
+    transparent 80%);
+}
+
+/* Pulicat lagoon, west of the pad. Still backwater, so it mirrors the sky. */
+#lagoon{
+  position:absolute;left:-4%;bottom:16.4vh;
+  width:56%;height:3.4vh;
+  background:linear-gradient(180deg,
+    rgba(96,132,178,.50) 0%,
+    rgba(64,96,140,.38) 40%,
+    rgba(40,64,100,.24) 100%);
+  filter:blur(.4px);
+}
+#lagoon::after{
+  content:"";position:absolute;left:12%;right:36%;top:22%;height:26%;
+  background:linear-gradient(90deg,transparent,rgba(190,215,245,.34),transparent);
+  filter:blur(1.5px);
+}
+
+/* Casuarina plantation. Feathery, uneven, dense - not a scalloped band. */
+#treeline{
+  position:absolute;left:0;right:0;bottom:18.6vh;height:4.6vh;
+}
+#treeline svg{width:100%;height:100%;display:block}
+
+/* Mobile Service Tower - retreats on rails during the count. */
+#mst{
+  position:absolute;left:50%;bottom:19vh;
+  width:min(150px,20vw);height:30vh;
+  transform:translateX(-50%);
+  will-change:transform,opacity;
+}
+#mst svg{width:100%;height:100%;display:block;overflow:visible}
+#rails{
+  position:absolute;left:12%;right:12%;bottom:18.6vh;height:.5vh;
+  background:
+    repeating-linear-gradient(90deg,#2A323E 0 3px,transparent 3px 14px),
+    linear-gradient(180deg,#39424F,#1B212B);
+  opacity:.75;
+}
+
+/* Lightning arrestor masts flank the pad. */
+#masts{
+  position:absolute;left:0;right:0;bottom:19vh;height:34vh;
+}
+#masts svg{width:100%;height:100%;display:block;overflow:visible}
+
+/* Foreground apron. Without this the bottom of the frame renders as sky. */
+#ground{
+  position:absolute;left:0;right:0;bottom:0;height:19vh;
+  background:
+    /* floodlight pools on the apron */
+    radial-gradient(ellipse 26% 70% at 20% 74%, rgba(172,196,228,.11), transparent 72%),
+    radial-gradient(ellipse 24% 62% at 80% 84%, rgba(172,196,228,.085), transparent 72%),
+    radial-gradient(ellipse 40% 90% at 50% 100%, rgba(0,0,0,.35), transparent 76%),
+    linear-gradient(180deg,#0B1017 0%,#0E141D 34%,#131A25 100%);
+}
+/* Perimeter road, catching the floodlights as it runs out to the pad. */
+#ground::after{
+  content:"";position:absolute;left:0;right:0;bottom:62%;height:2px;
+  background:linear-gradient(90deg,
+    transparent,rgba(201,209,217,.10) 18%,
+    rgba(201,209,217,.16) 50%,
+    rgba(201,209,217,.10) 82%,transparent);
+}
+#ground::before{ /* apron marking, catches the eye without shouting */
+  content:"13\00B0 43' N   80\00B0 14' E   \00B7   SDSC SHAR";
+  position:absolute;left:var(--gutter);bottom:22%;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
+  color:rgba(201,209,217,.16);
+}
+#haze{
+  position:absolute;left:0;right:0;bottom:19vh;height:10vh;
+  background:linear-gradient(180deg,
+    rgba(132,162,202,0) 0%,
+    rgba(132,162,202,.10) 58%,
+    rgba(150,180,220,.20) 100%);
+}
+
+/* ── Vehicle ──────────────────────────────────────────────────── */
+#vehicle{
+  position:absolute;left:50%;bottom:21.6vh;
+  transform:translateX(-50%);
+  transform-origin:bottom center;   /* base stays put as it shrinks */
+  width:min(118px,17vw);
+  will-change:transform;
+  z-index:4;
+}
+#vehicle svg{display:block;width:100%;height:auto;overflow:visible}
+
+/* Exhaust lives under the vehicle and scales with throttle. */
+#plume{
+  position:absolute;left:50%;top:84%;
+  transform:translateX(-50%) scaleY(0);
+  transform-origin:top center;
+  width:105%;height:132px;
+  will-change:transform,opacity;
+  pointer-events:none;
+  z-index:5;
+}
+.plume-glow{
+  position:absolute;left:50%;top:-6%;
+  width:230%;height:135%;
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse 42% 50% at 50% 22%,
+    rgba(255,196,96,.85) 0%,
+    rgba(255,132,32,.42) 38%,
+    rgba(255,96,20,.14) 62%,
+    rgba(255,90,20,0) 82%);
+  filter:blur(16px);
+}
+.plume-outer{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,
+    rgba(255,214,120,1) 0%,
+    rgba(255,150,40,.92) 22%,
+    rgba(255,110,24,.62) 52%,
+    rgba(226,88,28,.20) 80%,
+    rgba(190,70,30,0) 100%);
+  filter:blur(11px);
+  clip-path:polygon(37% 0,63% 0,76% 100%,24% 100%);
+}
+.plume-core{
+  position:absolute;left:41%;right:41%;top:0;height:58%;
+  background:linear-gradient(180deg,#FFFFFF 0%,#FFF3D0 26%,var(--flame-core) 58%,rgba(255,150,40,0) 100%);
+  filter:blur(3px);
+  clip-path:polygon(34% 0,66% 0,72% 100%,28% 100%);
+}
+.plume-wash{
+  position:absolute;left:50%;bottom:-8%;
+  width:320%;height:40%;
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse 50% 50% at 50% 50%,
+    rgba(255,170,70,.55) 0%,rgba(255,120,30,.20) 45%,rgba(255,110,30,0) 72%);
+  filter:blur(14px);
+}
+.diamond{
+  position:absolute;left:50%;width:13%;height:4%;
+  transform:translateX(-50%);
+  background:radial-gradient(ellipse at center,#FFFDF2 0%,rgba(255,220,140,.5) 55%,transparent 75%);
+  filter:blur(1px);
+}
+
+/* Ground-wash smoke at the pad */
+#smoke{
+  position:absolute;left:50%;bottom:17vh;
+  transform:translateX(-50%);
+  width:min(700px,86vw);height:20vh;
+  pointer-events:none;opacity:0;
+  will-change:opacity;
+  z-index:2;
+}
+.puff{
+  position:absolute;bottom:0;
+  border-radius:50%;
+  background:radial-gradient(circle at 40% 40%,
+    rgba(238,242,247,.90),rgba(186,198,212,.55) 45%,rgba(150,163,180,0) 72%);
+  will-change:transform,opacity;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TELEMETRY RAIL — instrumentation, not decoration
+   ══════════════════════════════════════════════════════════════════ */
+
+#telemetry{
+  position:fixed;left:var(--gutter);top:50%;
+  transform:translateY(-50%);
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  z-index:40;pointer-events:none;
+  opacity:0;transition:opacity .5s ease;
+}
+#telemetry.live{opacity:1}
+#telemetry.retired{opacity:0}
+.tel-row{display:flex;gap:10px;align-items:baseline;margin-bottom:7px}
+.tel-key{color:var(--ash-dim);width:34px;text-transform:uppercase}
+.tel-val{color:var(--ash);font-variant-numeric:tabular-nums;font-weight:500}
+.tel-unit{color:var(--ash-dim);font-size:10px}
+#tel-phase{
+  margin-top:14px;padding-top:12px;
+  border-top:1px solid rgba(201,209,217,.18);
+  color:var(--flame);font-weight:500;letter-spacing:.16em;
+}
+#tel-clock{color:var(--flame-core);font-size:15px;font-weight:500;letter-spacing:.04em}
+
+/* Throttle bar */
+#throttle{
+  margin-top:12px;width:88px;height:2px;
+  background:rgba(201,209,217,.16);
+}
+#throttle span{
+  display:block;height:100%;width:0%;
+  background:var(--flame);
+  box-shadow:0 0 8px var(--flame);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SCROLL COPY — phase callouts pinned over the stage
+   ══════════════════════════════════════════════════════════════════ */
+
+.callout{
+  position:absolute;right:var(--gutter);
+  width:min(530px,78vw);
+  text-align:right;z-index:30;
+  opacity:0;transform:translateY(18px);
+  will-change:opacity,transform;
+}
+.callout .eyebrow{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.24em;
+  color:var(--flame);text-transform:uppercase;margin-bottom:12px;
+}
+.callout h2{
+  font-family:var(--display);
+  font-size:clamp(34px,5.4vw,66px);
+  font-weight:700;line-height:.92;
+  letter-spacing:-.015em;text-transform:uppercase;
+  color:var(--hull);margin-bottom:14px;
+}
+.callout p{
+  font-size:clamp(14px,1.55vw,17px);
+  color:var(--ash);max-width:40ch;margin-left:auto;
+}
+#c-hold{top:16vh}
+#c-ignite{top:20vh}
+#c-lift{top:18vh}
+#c-ascent{top:22vh}
+#c-orbit{top:20vh}
+
+/* Scroll hint */
+#hint{
+  position:fixed;left:50%;bottom:30px;transform:translateX(-50%);
+  z-index:41;font-family:var(--mono);font-size:10px;
+  letter-spacing:.22em;color:var(--ash-dim);text-transform:uppercase;
+  transition:opacity .4s ease;
+}
+#hint::after{
+  content:"";display:block;width:1px;height:26px;margin:9px auto 0;
+  background:linear-gradient(180deg,var(--ash-dim),transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PAYLOAD — the actual project, after orbital insertion
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════
+   PAYLOAD — the page changes surface here.
+   Flight is sky, so it is dark. Past insertion you are looking DOWN at
+   Earth data, so the page becomes what that work is done on: a
+   topographic sheet. Contours, ink, survey green. Orange survives from
+   the flight but is now reserved for one thing only - evidence.
+   ══════════════════════════════════════════════════════════════════ */
+#payload{
+  position:relative;z-index:20;
+  --sheet:#DFE3DE;
+  --sheet-deep:#CFD5CE;
+  --ink:#12171C;
+  --ink-soft:#4B5560;
+  --survey:#2F6B52;
+  --contour:rgba(60,88,72,.085);
+  background:
+    /* contour lines, the texture of the work itself */
+    repeating-radial-gradient(ellipse 78% 52% at 12% 8%,
+      transparent 0 52px, var(--contour) 52px 53px),
+    repeating-radial-gradient(ellipse 64% 72% at 92% 58%,
+      transparent 0 61px, var(--contour) 61px 62px),
+    /* paper tone falls off toward the edges so the middle stays readable */
+    radial-gradient(ellipse 70% 50% at 50% 40%,
+      rgba(255,255,255,.55), transparent 78%),
+    var(--sheet);
+  color:var(--ink);
+}
+/* Sheet edge: the transition from vacuum to paper is a hard datum line. */
+#payload::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,
+    var(--flame) 0%, var(--flame) 18%, var(--survey) 18%, var(--survey) 34%,
+    var(--ink) 34%, var(--ink) 100%);
+}
+
+/* CTA — the moment the flight hands off to the working product. Placed
+   right at the top of #payload, before the written explanation, since a
+   button that lets someone try the thing beats another paragraph about it. */
+.cta-block{
+  text-align:center;max-width:1120px;margin:0 auto;
+  padding:clamp(44px,7vh,64px) var(--gutter) clamp(48px,7vh,64px);
+  border-bottom:1px solid var(--rule);
+}
+.cta-kicker{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;
+  color:var(--survey);text-transform:uppercase;margin-bottom:16px;
+}
+.cta-heading{
+  font-family:var(--display);font-weight:600;
+  font-size:clamp(24px,3.6vw,38px);line-height:1.1;
+  color:var(--ink);margin-bottom:12px;
+}
+.cta-sub{
+  font-size:15px;color:var(--ink-soft);line-height:1.55;
+  max-width:52ch;margin:0 auto 28px;
+}
+.cta-button{
+  display:inline-flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:12.5px;letter-spacing:.16em;
+  font-weight:500;text-transform:uppercase;text-decoration:none;
+  padding:15px 30px;background:var(--flame);color:#FFFDF9;
+  border:1px solid var(--flame);
+  transition:background-color .15s ease,transform .15s ease,box-shadow .15s ease;
+}
+.cta-button:hover{
+  background:#E0530E;transform:translateY(-1px);
+  box-shadow:0 8px 20px -8px rgba(255,122,24,.55);
+}
+.cta-button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+section.bay{
+  padding:clamp(76px,13vh,150px) var(--gutter);
+  max-width:1120px;margin:0 auto;
+}
+.bay-head{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;
+  color:var(--survey);text-transform:uppercase;margin-bottom:20px;
+  display:flex;align-items:center;gap:10px;
+}
+.bay-head::before{
+  content:"";width:22px;height:1px;background:var(--survey);flex:none;
+}
+h3.bay-title{
+  font-family:var(--display);
+  font-size:clamp(28px,4.4vw,50px);
+  font-weight:600;line-height:1.02;
+  letter-spacing:-.005em;color:var(--ink);margin-bottom:24px;
+  text-transform:none;              /* not everything needs to shout */
+}
+.lede{font-size:clamp(15.5px,1.7vw,18.5px);max-width:58ch;color:var(--ink-soft);line-height:1.62}
+.lede strong{color:var(--ink);font-weight:500}
+
+/* Console — the product running, on the sheet like a mounted plate. */
+.console{
+  display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);
+  align-items:stretch;
+  gap:0;margin-top:44px;
+  background:#F4F6F2;
+  border:1px solid rgba(18,23,28,.16);
+  box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 18px 44px -30px rgba(18,23,28,.5);
+}
+.console-scene{
+  border-right:1px solid rgba(18,23,28,.13);
+  padding:16px;display:flex;flex-direction:column;gap:11px;
+  justify-content:center;
+  background:#E9ECE5;
+}
+.tile{width:100%;height:auto;display:block;border:1px solid rgba(18,23,28,.22)}
+.tile-meta{
+  display:flex;justify-content:space-between;gap:10px;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;
+  color:var(--ink-soft);text-transform:uppercase;
+}
+#tile-task{color:var(--survey)}
+
+.console-side{padding:22px 24px 24px}
+.q-label,.plan-label,.a-label{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
+  color:var(--ink-soft);text-transform:uppercase;margin-bottom:8px;
+}
+.plan-label,.a-label{margin-top:22px}
+.q-text{
+  font-size:clamp(17px,2.1vw,23px);line-height:1.3;
+  color:var(--ink);min-height:2.2em;font-weight:500;
+}
+.caret{
+  display:inline-block;width:2px;height:1em;margin-left:2px;
+  background:var(--flame);vertical-align:-2px;
+  animation:blink 1.05s steps(1) infinite;
+}
+@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
+
+/* Plan steps: order matters here because it IS a sequence, unlike a
+   decorative 01/02/03 module. Each lights only when it actually runs. */
+.plan{list-style:none;display:flex;flex-direction:column;gap:1px}
+.plan li{
+  display:flex;align-items:baseline;gap:12px;
+  padding:6px 9px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.04em;
+  color:rgba(75,85,96,.5);
+  background:transparent;
+  border-left:2px solid rgba(18,23,28,.1);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.plan li b{font-weight:500;width:66px;flex:none}
+.plan li span{font-family:var(--body);font-size:12px;letter-spacing:0}
+.plan li.on{
+  color:var(--ink);background:rgba(47,107,82,.09);
+  border-left-color:var(--survey);
+}
+.plan li.done{color:var(--ink-soft);border-left-color:rgba(47,107,82,.45)}
+.plan li.skip{
+  color:rgba(75,85,96,.42);
+  border-left-color:rgba(255,92,0,.5);
+  background:rgba(255,92,0,.06);
+}
+
+.a-text{
+  font-size:16px;line-height:1.55;color:var(--ink);
+  min-height:3.1em;
+}
+.a-text.refusal{color:#8A4A12}
+.a-meta{
+  margin-top:10px;font-family:var(--mono);font-size:10px;
+  letter-spacing:.1em;color:var(--ink-soft);text-transform:uppercase;
+}
+
+@media (max-width:860px){
+  .console{grid-template-columns:1fr}
+  .console-scene{border-right:0;border-bottom:1px solid rgba(18,23,28,.13)}
+}
+
+/* Readouts *//* Readouts */
+.readouts{
+  display:grid;gap:28px;margin-top:44px;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+}
+.readout{border-top:2px solid var(--ink);padding-top:12px}
+.readout .figure{
+  font-family:var(--mono);font-size:clamp(24px,3.3vw,34px);
+  color:var(--ink);font-variant-numeric:tabular-nums;
+  line-height:1;margin-bottom:9px;font-weight:500;
+}
+.readout .label{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+
+/* Status ledger — what flies today vs what is still on the pad */
+.ledger{margin-top:44px;border-top:1px solid rgba(18,23,28,.18)}
+.ledger-row{
+  display:grid;grid-template-columns:96px 1fr;gap:20px;
+  padding:17px 0;border-bottom:1px solid rgba(18,23,28,.11);
+  align-items:baseline;
+}
+.ledger-row .state{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.state.nominal{color:var(--survey)}
+.state.pending{color:#B4531A}
+.ledger-row .what{font-size:15px;color:var(--ink)}
+.ledger-row .what em{
+  display:block;font-style:normal;font-size:13px;
+  color:var(--ink-soft);margin-top:3px;
+}
+
+footer{
+  padding:44px var(--gutter) 60px;
+  border-top:1px solid rgba(18,23,28,.16);
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+  color:var(--ink-soft);text-transform:uppercase;
+  display:flex;gap:22px;flex-wrap:wrap;justify-content:space-between;
+  max-width:1120px;margin:0 auto;
+}
+
+/* ── Accessibility floor ──────────────────────────────────────── */
+a{
+  color:#A8480E;
+  font-family:var(--mono);font-size:.86em;
+  text-decoration:none;
+  border-bottom:1px solid rgba(168,72,14,.4);
+  padding-bottom:1px;
+}
+a:hover{border-bottom-color:#A8480E}
+:focus-visible{outline:2px solid var(--flame-core);outline-offset:3px}
+
+@media (max-width:960px){
+  .pipeline{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:720px){
+  .pipeline{grid-template-columns:1fr}
+  #telemetry{
+    top:auto;bottom:16px;left:50%;
+    transform:translateX(-50%);
+    display:flex;gap:16px;align-items:baseline;
+  }
+  .tel-row{margin-bottom:0}
+  .tel-key,#throttle{display:none}
+  #tel-phase{margin:0;padding:0;border:0}
+  .callout{text-align:left;left:var(--gutter);right:var(--gutter);width:auto}
+  .callout p{margin-left:0}
+  #hint{display:none}
+}
+
+/* Motion off: compose the finished frame instead of animating to it. */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  #flight{height:auto}
+  #stage{position:relative;height:88vh}
+  .callout{
+    position:static;opacity:1;transform:none;
+    text-align:left;margin:0 auto 56px;width:min(680px,88vw);
+  }
+  .callout p{margin-left:0}
+  #sky-high{opacity:1}
+  #stars{opacity:.85}
+  #vehicle{bottom:22vh}
+  #plume{transform:translateX(-50%) scaleY(.9)}
+  #telemetry{display:none}
+  #hint{display:none}
+}
+</style>
+</head>
+<body class="dark">
+
+<script src="assets/site.js"></script>
+<script>DRISHTIX_nav();</script>
+
+<div id="telemetry">
+  <div id="tel-clock">T−00:00:10</div>
+  <div class="tel-row" style="margin-top:12px">
+    <span class="tel-key">alt</span>
+    <span class="tel-val" id="tel-alt">0.0</span><span class="tel-unit">km</span>
+  </div>
+  <div class="tel-row">
+    <span class="tel-key">vel</span>
+    <span class="tel-val" id="tel-vel">0</span><span class="tel-unit">m/s</span>
+  </div>
+  <div class="tel-row">
+    <span class="tel-key">az</span>
+    <span class="tel-val">140.0</span><span class="tel-unit">deg</span>
+  </div>
+  <div id="throttle"><span id="throttle-bar"></span></div>
+  <div id="tel-phase">HOLD</div>
+</div>
+
+<div id="hint">Scroll to launch</div>
+
+<!-- ═══════════════ FLIGHT ═══════════════ -->
+<div id="flight">
+  <div id="stage">
+
+    <div class="sky" id="sky-dawn"></div>
+    <div class="sky" id="sky-high"></div>
+    <div class="sky" id="sky-space"></div>
+    <canvas id="stars"></canvas>
+    <div id="limb"></div>
+
+    <!-- Launch complex, far to near. Each layer parallaxes at its own rate. -->
+    <div id="complex">
+      <div id="dawn-glow"></div>
+      <div id="lagoon"></div>
+      <div id="treeline">
+        <svg viewBox="0 0 1600 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <!-- One casuarina: narrow trunk, tapered feathery crown. -->
+            <path id="cas" d="M0 100 L0 52 q-3.5 -9 -1 -15 q-4.5 -7 -1 -13
+                              q-3.5 -8 1 -14 q-2.5 -9 2 -13 q4.5 4 2 13
+                              q4.5 6 1 14 q3.5 6 -1 13 q2.5 6 -1 15 L2.2 100 Z"/>
+          </defs>
+          <g fill="#121A26"><use href="#cas" transform="translate(-30,100) scale(1.18,0.70) translate(0,-100)"/><use href="#cas" transform="translate(8.4,100) scale(1.01,0.53) translate(0,-100)"/><use href="#cas" transform="translate(19.8,100) scale(1.08,0.42) translate(0,-100)"/><use href="#cas" transform="translate(53.4,100) scale(0.63,0.34) translate(0,-100)"/><use href="#cas" transform="translate(81.6,100) scale(0.73,0.51) translate(0,-100)"/><use href="#cas" transform="translate(88.1,100) scale(1.13,0.58) translate(0,-100)"/><use href="#cas" transform="translate(134.5,100) scale(0.93,0.70) translate(0,-100)"/><use href="#cas" transform="translate(165.9,100) scale(0.70,0.70) translate(0,-100)"/><use href="#cas" transform="translate(232.1,100) scale(0.94,0.51) translate(0,-100)"/><use href="#cas" transform="translate(256.2,100) scale(1.22,0.36) translate(0,-100)"/><use href="#cas" transform="translate(336.8,100) scale(1.09,0.48) translate(0,-100)"/><use href="#cas" transform="translate(401.2,100) scale(1.15,0.37) translate(0,-100)"/><use href="#cas" transform="translate(409.1,100) scale(0.58,0.55) translate(0,-100)"/><use href="#cas" transform="translate(491.9,100) scale(0.96,0.53) translate(0,-100)"/><use href="#cas" transform="translate(518.5,100) scale(0.80,0.45) translate(0,-100)"/><use href="#cas" transform="translate(544.1,100) scale(0.64,0.71) translate(0,-100)"/><use href="#cas" transform="translate(553.2,100) scale(0.58,0.64) translate(0,-100)"/><use href="#cas" transform="translate(579.6,100) scale(0.84,0.53) translate(0,-100)"/><use href="#cas" transform="translate(594.5,100) scale(1.23,0.52) translate(0,-100)"/><use href="#cas" transform="translate(619.4,100) scale(0.85,0.56) translate(0,-100)"/><use href="#cas" transform="translate(625.5,100) scale(0.82,0.43) translate(0,-100)"/><use href="#cas" transform="translate(682.9,100) scale(0.92,0.53) translate(0,-100)"/><use href="#cas" transform="translate(706.8,100) scale(1.10,0.26) translate(0,-100)"/><use href="#cas" transform="translate(717.7,100) scale(1.03,0.32) translate(0,-100)"/><use href="#cas" transform="translate(753.2,100) scale(1.22,0.59) translate(0,-100)"/><use href="#cas" transform="translate(806.1,100) scale(1.12,0.24) translate(0,-100)"/><use href="#cas" transform="translate(866.4,100) scale(1.11,0.34) translate(0,-100)"/><use href="#cas" transform="translate(921.7,100) scale(0.74,0.64) translate(0,-100)"/><use href="#cas" transform="translate(932.9,100) scale(1.22,0.59) translate(0,-100)"/><use href="#cas" transform="translate(1049.9,100) scale(1.03,0.61) translate(0,-100)"/><use href="#cas" transform="translate(1071.1,100) scale(1.20,0.55) translate(0,-100)"/><use href="#cas" transform="translate(1133.8,100) scale(1.02,0.62) translate(0,-100)"/><use href="#cas" transform="translate(1155.0,100) scale(1.17,0.45) translate(0,-100)"/><use href="#cas" transform="translate(1170.8,100) scale(1.03,0.71) translate(0,-100)"/><use href="#cas" transform="translate(1185.6,100) scale(1.06,0.32) translate(0,-100)"/><use href="#cas" transform="translate(1209.3,100) scale(0.81,0.27) translate(0,-100)"/><use href="#cas" transform="translate(1217.8,100) scale(0.59,0.30) translate(0,-100)"/><use href="#cas" transform="translate(1255.5,100) scale(1.18,0.61) translate(0,-100)"/><use href="#cas" transform="translate(1304.1,100) scale(0.86,0.65) translate(0,-100)"/><use href="#cas" transform="translate(1311.8,100) scale(0.68,0.56) translate(0,-100)"/><use href="#cas" transform="translate(1317.7,100) scale(0.63,0.52) translate(0,-100)"/><use href="#cas" transform="translate(1350.1,100) scale(0.69,0.30) translate(0,-100)"/><use href="#cas" transform="translate(1414.2,100) scale(1.09,0.37) translate(0,-100)"/><use href="#cas" transform="translate(1477.6,100) scale(1.02,0.51) translate(0,-100)"/><use href="#cas" transform="translate(1491.0,100) scale(0.89,0.63) translate(0,-100)"/><use href="#cas" transform="translate(1497.3,100) scale(1.04,0.65) translate(0,-100)"/><use href="#cas" transform="translate(1505.8,100) scale(0.77,0.54) translate(0,-100)"/><use href="#cas" transform="translate(1524.8,100) scale(0.95,0.43) translate(0,-100)"/><use href="#cas" transform="translate(1536.9,100) scale(0.61,0.35) translate(0,-100)"/><use href="#cas" transform="translate(1568.6,100) scale(1.06,0.33) translate(0,-100)"/><use href="#cas" transform="translate(1588.7,100) scale(1.22,0.60) translate(0,-100)"/></g><g fill="#0C131C"><use href="#cas" transform="translate(-23.7,100) scale(0.92,0.53) translate(0,-100)"/><use href="#cas" transform="translate(2.4,100) scale(0.80,0.71) translate(0,-100)"/><use href="#cas" transform="translate(28.8,100) scale(0.77,0.67) translate(0,-100)"/><use href="#cas" transform="translate(35.1,100) scale(0.96,0.70) translate(0,-100)"/><use href="#cas" transform="translate(44.9,100) scale(0.68,0.40) translate(0,-100)"/><use href="#cas" transform="translate(95.9,100) scale(0.96,0.81) translate(0,-100)"/><use href="#cas" transform="translate(149.4,100) scale(1.23,0.49) translate(0,-100)"/><use href="#cas" transform="translate(172.4,100) scale(0.93,0.39) translate(0,-100)"/><use href="#cas" transform="translate(209.3,100) scale(1.03,0.53) translate(0,-100)"/><use href="#cas" transform="translate(222.7,100) scale(0.76,0.43) translate(0,-100)"/><use href="#cas" transform="translate(262.5,100) scale(0.71,0.60) translate(0,-100)"/><use href="#cas" transform="translate(273.3,100) scale(1.05,0.55) translate(0,-100)"/><use href="#cas" transform="translate(278.9,100) scale(0.65,0.74) translate(0,-100)"/><use href="#cas" transform="translate(302.4,100) scale(1.04,0.34) translate(0,-100)"/><use href="#cas" transform="translate(312.4,100) scale(0.94,0.60) translate(0,-100)"/><use href="#cas" transform="translate(348.7,100) scale(0.77,0.46) translate(0,-100)"/><use href="#cas" transform="translate(366.7,100) scale(0.88,0.76) translate(0,-100)"/><use href="#cas" transform="translate(391.5,100) scale(0.95,0.36) translate(0,-100)"/><use href="#cas" transform="translate(479.1,100) scale(0.95,0.69) translate(0,-100)"/><use href="#cas" transform="translate(508.0,100) scale(0.98,0.47) translate(0,-100)"/><use href="#cas" transform="translate(530.2,100) scale(0.77,0.82) translate(0,-100)"/><use href="#cas" transform="translate(562.5,100) scale(0.93,0.72) translate(0,-100)"/><use href="#cas" transform="translate(570.0,100) scale(0.77,0.33) translate(0,-100)"/><use href="#cas" transform="translate(605.1,100) scale(0.98,0.54) translate(0,-100)"/><use href="#cas" transform="translate(644.0,100) scale(0.74,0.67) translate(0,-100)"/><use href="#cas" transform="translate(651.1,100) scale(0.96,0.33) translate(0,-100)"/><use href="#cas" transform="translate(661.5,100) scale(0.60,0.36) translate(0,-100)"/><use href="#cas" transform="translate(698.5,100) scale(1.10,0.60) translate(0,-100)"/><use href="#cas" transform="translate(732.2,100) scale(1.20,0.36) translate(0,-100)"/><use href="#cas" transform="translate(764.7,100) scale(0.95,0.45) translate(0,-100)"/><use href="#cas" transform="translate(779.6,100) scale(0.69,0.79) translate(0,-100)"/><use href="#cas" transform="translate(792.1,100) scale(1.12,0.33) translate(0,-100)"/><use href="#cas" transform="translate(818.8,100) scale(1.11,0.62) translate(0,-100)"/><use href="#cas" transform="translate(841.4,100) scale(0.84,0.81) translate(0,-100)"/><use href="#cas" transform="translate(894.2,100) scale(0.91,0.54) translate(0,-100)"/><use href="#cas" transform="translate(907.4,100) scale(0.96,0.60) translate(0,-100)"/><use href="#cas" transform="translate(954.6,100) scale(1.09,0.85) translate(0,-100)"/><use href="#cas" transform="translate(976.7,100) scale(1.09,0.85) translate(0,-100)"/><use href="#cas" transform="translate(1001.9,100) scale(1.20,0.32) translate(0,-100)"/><use href="#cas" transform="translate(1010.0,100) scale(1.09,0.56) translate(0,-100)"/><use href="#cas" transform="translate(1031.7,100) scale(0.81,0.67) translate(0,-100)"/><use href="#cas" transform="translate(1056.4,100) scale(0.99,0.73) translate(0,-100)"/><use href="#cas" transform="translate(1092.5,100) scale(0.98,0.65) translate(0,-100)"/><use href="#cas" transform="translate(1107.0,100) scale(0.97,0.71) translate(0,-100)"/><use href="#cas" transform="translate(1198.2,100) scale(0.93,0.48) translate(0,-100)"/><use href="#cas" transform="translate(1244.2,100) scale(1.06,0.55) translate(0,-100)"/><use href="#cas" transform="translate(1281.1,100) scale(1.13,0.77) translate(0,-100)"/><use href="#cas" transform="translate(1291.7,100) scale(0.88,0.32) translate(0,-100)"/><use href="#cas" transform="translate(1332.6,100) scale(1.11,0.72) translate(0,-100)"/><use href="#cas" transform="translate(1340.5,100) scale(0.98,0.39) translate(0,-100)"/><use href="#cas" transform="translate(1380.8,100) scale(0.69,0.46) translate(0,-100)"/><use href="#cas" transform="translate(1393.0,100) scale(1.05,0.41) translate(0,-100)"/><use href="#cas" transform="translate(1439.4,100) scale(1.12,0.58) translate(0,-100)"/><use href="#cas" transform="translate(1455.6,100) scale(0.55,0.78) translate(0,-100)"/><use href="#cas" transform="translate(1553.6,100) scale(0.74,0.32) translate(0,-100)"/><use href="#cas" transform="translate(1574.7,100) scale(0.73,0.82) translate(0,-100)"/><use href="#cas" transform="translate(1610.8,100) scale(0.70,0.42) translate(0,-100)"/><use href="#cas" transform="translate(1619.7,100) scale(0.96,0.81) translate(0,-100)"/><use href="#cas" transform="translate(1630.5,100) scale(1.11,0.40) translate(0,-100)"/></g><g fill="#070C12"><use href="#cas" transform="translate(-17.0,100) scale(0.70,0.63) translate(0,-100)"/><use href="#cas" transform="translate(-7.1,100) scale(1.05,0.40) translate(0,-100)"/><use href="#cas" transform="translate(59.9,100) scale(0.95,0.52) translate(0,-100)"/><use href="#cas" transform="translate(73.2,100) scale(0.75,0.58) translate(0,-100)"/><use href="#cas" transform="translate(110.3,100) scale(0.59,0.98) translate(0,-100)"/><use href="#cas" transform="translate(119.8,100) scale(1.03,0.87) translate(0,-100)"/><use href="#cas" transform="translate(158.5,100) scale(0.88,0.39) translate(0,-100)"/><use href="#cas" transform="translate(185.6,100) scale(1.18,0.62) translate(0,-100)"/><use href="#cas" transform="translate(195.3,100) scale(1.12,0.93) translate(0,-100)"/><use href="#cas" transform="translate(245.4,100) scale(0.78,0.76) translate(0,-100)"/><use href="#cas" transform="translate(292.6,100) scale(0.67,0.79) translate(0,-100)"/><use href="#cas" transform="translate(322.9,100) scale(0.61,0.93) translate(0,-100)"/><use href="#cas" transform="translate(357.5,100) scale(0.79,0.97) translate(0,-100)"/><use href="#cas" transform="translate(377.4,100) scale(0.61,0.52) translate(0,-100)"/><use href="#cas" transform="translate(385.0,100) scale(0.90,0.90) translate(0,-100)"/><use href="#cas" transform="translate(422.2,100) scale(0.65,0.58) translate(0,-100)"/><use href="#cas" transform="translate(435.7,100) scale(0.83,0.83) translate(0,-100)"/><use href="#cas" transform="translate(447.7,100) scale(1.19,0.39) translate(0,-100)"/><use href="#cas" transform="translate(459.4,100) scale(1.19,0.98) translate(0,-100)"/><use href="#cas" transform="translate(466.6,100) scale(0.65,0.74) translate(0,-100)"/><use href="#cas" transform="translate(500.5,100) scale(1.15,0.40) translate(0,-100)"/><use href="#cas" transform="translate(587.4,100) scale(0.86,0.78) translate(0,-100)"/><use href="#cas" transform="translate(631.5,100) scale(1.23,0.60) translate(0,-100)"/><use href="#cas" transform="translate(671.5,100) scale(0.77,0.76) translate(0,-100)"/><use href="#cas" transform="translate(690.3,100) scale(0.74,0.98) translate(0,-100)"/><use href="#cas" transform="translate(746.9,100) scale(0.61,0.89) translate(0,-100)"/><use href="#cas" transform="translate(799.3,100) scale(1.01,0.38) translate(0,-100)"/><use href="#cas" transform="translate(830.4,100) scale(0.80,0.87) translate(0,-100)"/><use href="#cas" transform="translate(855.0,100) scale(1.02,0.56) translate(0,-100)"/><use href="#cas" transform="translate(879.4,100) scale(0.96,0.43) translate(0,-100)"/><use href="#cas" transform="translate(947.1,100) scale(0.80,0.68) translate(0,-100)"/><use href="#cas" transform="translate(961.0,100) scale(1.17,0.58) translate(0,-100)"/><use href="#cas" transform="translate(970.9,100) scale(0.72,0.70) translate(0,-100)"/><use href="#cas" transform="translate(989.2,100) scale(1.00,0.71) translate(0,-100)"/><use href="#cas" transform="translate(1018.7,100) scale(0.89,0.62) translate(0,-100)"/><use href="#cas" transform="translate(1044.2,100) scale(1.21,0.92) translate(0,-100)"/><use href="#cas" transform="translate(1077.9,100) scale(0.92,0.69) translate(0,-100)"/><use href="#cas" transform="translate(1116.3,100) scale(0.56,0.44) translate(0,-100)"/><use href="#cas" transform="translate(1125.0,100) scale(0.89,0.39) translate(0,-100)"/><use href="#cas" transform="translate(1147.3,100) scale(0.98,0.42) translate(0,-100)"/><use href="#cas" transform="translate(1162.8,100) scale(1.03,0.75) translate(0,-100)"/><use href="#cas" transform="translate(1224.4,100) scale(1.16,0.63) translate(0,-100)"/><use href="#cas" transform="translate(1233.2,100) scale(0.78,0.78) translate(0,-100)"/><use href="#cas" transform="translate(1268.1,100) scale(1.09,0.67) translate(0,-100)"/><use href="#cas" transform="translate(1359.3,100) scale(1.22,0.61) translate(0,-100)"/><use href="#cas" transform="translate(1373.0,100) scale(0.71,0.89) translate(0,-100)"/><use href="#cas" transform="translate(1387.1,100) scale(1.19,0.47) translate(0,-100)"/><use href="#cas" transform="translate(1398.6,100) scale(0.57,0.83) translate(0,-100)"/><use href="#cas" transform="translate(1408.0,100) scale(0.99,0.66) translate(0,-100)"/><use href="#cas" transform="translate(1421.0,100) scale(0.61,0.47) translate(0,-100)"/><use href="#cas" transform="translate(1428.8,100) scale(1.15,0.40) translate(0,-100)"/><use href="#cas" transform="translate(1445.3,100) scale(0.56,0.78) translate(0,-100)"/><use href="#cas" transform="translate(1464.9,100) scale(0.57,0.72) translate(0,-100)"/><use href="#cas" transform="translate(1518.8,100) scale(1.18,0.50) translate(0,-100)"/><use href="#cas" transform="translate(1547.3,100) scale(0.63,0.62) translate(0,-100)"/><use href="#cas" transform="translate(1562.8,100) scale(1.18,0.87) translate(0,-100)"/><use href="#cas" transform="translate(1581.8,100) scale(1.10,0.91) translate(0,-100)"/><use href="#cas" transform="translate(1603.5,100) scale(0.57,0.82) translate(0,-100)"/></g>
+          <rect x="0" y="96" width="1600" height="4" fill="#060A10"/>
+        </svg>
+      </div>
+      <div id="mst">
+        <svg viewBox="0 0 150 300" aria-hidden="true">
+          <!-- rail bogies -->
+          <rect x="16" y="288" width="30" height="9" fill="#39424F"/>
+          <rect x="104" y="288" width="30" height="9" fill="#39424F"/>
+          <!-- lattice frame -->
+          <g stroke="#5A6675" stroke-width="3.2" fill="none">
+            <path d="M20 288 V26 M130 288 V26 M20 26 h110"/>
+            <path d="M20 246 h110 M20 202 h110 M20 158 h110
+                     M20 114 h110 M20 70 h110"/>
+          </g>
+          <g stroke="#414C5C" stroke-width="1.9" fill="none" opacity=".9">
+            <path d="M20 288 L130 246 M130 288 L20 246
+                     M20 246 L130 202 M130 246 L20 202
+                     M20 202 L130 158 M130 202 L20 158
+                     M20 158 L130 114 M130 158 L20 114
+                     M20 114 L130 70  M130 114 L20 70
+                     M20 70  L130 26  M130 70  L20 26"/>
+          </g>
+          <!-- enclosed clean-room bays, the solid part of the tower -->
+          <rect x="24" y="70" width="102" height="42" fill="#2B3440" opacity=".95"/>
+          <rect x="24" y="158" width="102" height="40" fill="#262E3A" opacity=".95"/>
+          <g fill="#3A4554">
+            <rect x="32" y="80"  width="16" height="7"/>
+            <rect x="56" y="80"  width="16" height="7"/>
+            <rect x="80" y="80"  width="16" height="7"/>
+            <rect x="32" y="168" width="16" height="7"/>
+            <rect x="56" y="168" width="16" height="7"/>
+          </g>
+          <!-- crane boom at the crown -->
+          <path d="M64 26 V12 h44 v6 h-38" fill="none" stroke="#4A5566" stroke-width="2"/>
+          <!-- hazard beacon -->
+          <circle cx="112" cy="20" r="2.4" fill="#FF7A18" opacity=".85"/>
+        </svg>
+      </div>
+      <div id="rails"></div>
+      <!-- lightning arrestor masts: three ring a real Indian pad -->
+      <div id="masts">
+        <svg viewBox="0 0 1200 420" preserveAspectRatio="none" aria-hidden="true">
+          <g stroke="#333D4C" stroke-width="3.2" fill="none">
+            <path d="M300 420 V54 M284 420 L300 54 M316 420 L300 54"/>
+            <path d="M287 340 h26 M285 258 h30 M289 176 h22 M293 108 h14"/>
+            <path d="M900 420 V54 M884 420 L900 54 M916 420 L900 54"/>
+            <path d="M887 340 h26 M885 258 h30 M889 176 h22 M893 108 h14"/>
+          </g>
+          <path d="M297 54 h6 v-30 h-6 Z M897 54 h6 v-30 h-6 Z" fill="#46525F"/>
+        </svg>
+      </div>
+      <div id="haze"></div>
+      <div id="ground"></div>
+    </div>
+
+    <div id="smoke"></div>
+
+    <div id="pad">
+      <div class="tower left"></div>
+      <div class="tower right"></div>
+      <div class="tower-arm left"></div>
+      <div class="tower-arm right"></div>
+      <div class="pad-deck"></div>
+      <div class="pad-trench"></div>
+      <div class="pad-mount"></div>
+    </div>
+
+    <div id="vehicle">
+      <!-- Four-stage launcher, PSLV-derived proportions: slender core,
+           strap-on boosters, payload fairing. -->
+      <svg viewBox="0 0 120 460" aria-label="Launch vehicle">
+        <defs>
+          <linearGradient id="hull" x1="0" x2="1">
+            <stop offset="0"    stop-color="#7E8895"/>
+            <stop offset=".22"  stop-color="#E8EAED"/>
+            <stop offset=".52"  stop-color="#FFFFFF"/>
+            <stop offset=".80"  stop-color="#D3D8DE"/>
+            <stop offset="1"    stop-color="#79838F"/>
+          </linearGradient>
+          <linearGradient id="strap" x1="0" x2="1">
+            <stop offset="0"   stop-color="#6E7783"/>
+            <stop offset=".35" stop-color="#D7DCE2"/>
+            <stop offset="1"   stop-color="#6A737F"/>
+          </linearGradient>
+          <linearGradient id="nose" x1="0" x2="1">
+            <stop offset="0"   stop-color="#9AA3AE"/>
+            <stop offset=".45" stop-color="#FFFFFF"/>
+            <stop offset="1"   stop-color="#8C959F"/>
+          </linearGradient>
+        </defs>
+
+        <!-- strap-on boosters (separate group so they can jettison) -->
+        <g id="straps">
+          <g>
+            <path d="M27 196 h14 v150 q0 12 -7 19 Q27 358 27 346 Z" fill="url(#strap)"/>
+            <path d="M27 196 q7 -26 14 0 Z" fill="#C2C9D1"/>
+            <rect x="27" y="232" width="14" height="5" fill="#2E3540"/>
+            <rect x="27" y="292" width="14" height="5" fill="#2E3540"/>
+            <path d="M25 330 l2 -26 h3 v30 Z" fill="#8B939D"/>
+            <path d="M31 365 h6 l2 12 h-10 Z" fill="#3A424E"/>
+          </g>
+          <g>
+            <path d="M79 196 h14 v150 q0 12 -7 19 Q79 358 79 346 Z" fill="url(#strap)"/>
+            <path d="M79 196 q7 -26 14 0 Z" fill="#C2C9D1"/>
+            <rect x="79" y="232" width="14" height="5" fill="#2E3540"/>
+            <rect x="79" y="292" width="14" height="5" fill="#2E3540"/>
+            <path d="M95 330 l-2 -26 h-3 v30 Z" fill="#8B939D"/>
+            <path d="M83 365 h6 l2 12 h-10 Z" fill="#3A424E"/>
+          </g>
+        </g>
+
+        <!-- core stack -->
+        <path d="M46 96 h28 v268 h-28 Z" fill="url(#hull)"/>
+        <!-- interstage bands -->
+        <rect x="46" y="150" width="28" height="9"  fill="#242B35"/>
+        <rect x="46" y="236" width="28" height="7"  fill="#242B35"/>
+        <rect x="46" y="316" width="28" height="9"  fill="#242B35"/>
+        <!-- panel seams -->
+        <g stroke="#B9C0C8" stroke-width=".6" opacity=".55">
+          <path d="M46 122 h28 M46 196 h28 M46 274 h28 M46 344 h28"/>
+        </g>
+        <path d="M60 100 v264" stroke="#AEB6BF" stroke-width=".5" opacity=".4"/>
+
+        <!-- ═══ MISSION MARKINGS ═══
+             Swap point: replace this group with your own decal artwork.
+             The tricolour band is the national flag as flown on the vehicle;
+             the roundel below it is this project's own mark, not an
+             official organisational emblem. -->
+        <g id="markings">
+          <!-- national flag, fairing -->
+          <rect x="52" y="108" width="16" height="11" fill="#FFFFFF"/>
+          <rect x="52" y="108" width="16" height="3.7" fill="#FF9933"/>
+          <rect x="52" y="115.3" width="16" height="3.7" fill="#138808"/>
+          <circle cx="60" cy="113.5" r="1.5" fill="none" stroke="#0B3B8F" stroke-width=".5"/>
+          <!-- mission roundel -->
+          <circle cx="60" cy="180" r="8" fill="#0E1520" stroke="#FF9933" stroke-width="1.2"/>
+          <circle cx="60" cy="180" r="3.2" fill="none" stroke="#E8EAED" stroke-width=".9"/>
+          <path d="M60 172.4 v3 M60 185 v3" stroke="#E8EAED" stroke-width=".9"/>
+          <!-- vehicle serial -->
+          <text x="60" y="214" font-family="monospace" font-size="7"
+                fill="#3A424E" text-anchor="middle" letter-spacing="1">N-01</text>
+        </g>
+        <!-- ═══ END MISSION MARKINGS ═══ -->
+
+        <!-- payload fairing -->
+        <path d="M60 8 q16 44 14 88 h-28 q-2 -44 14 -88 Z" fill="url(#nose)"/>
+        <path d="M60 8 q16 44 14 88 h-14 Z" fill="#FFFFFF" opacity=".22"/>
+        <rect x="46" y="96" width="28" height="4" fill="#242B35"/>
+        <!-- core fins -->
+        <path d="M46 364 l-13 26 h13 Z" fill="#9AA3AE"/>
+        <path d="M74 364 l13 26 h-13 Z" fill="#9AA3AE"/>
+        <!-- engine bell -->
+        <path d="M52 364 h16 l5 22 h-26 Z" fill="#3A424E"/>
+      </svg>
+
+      <div id="plume">
+        <div class="plume-glow"></div>
+        <div class="plume-outer"></div>
+        <div class="plume-core"></div>
+        <div class="diamond" style="top:14%"></div>
+        <div class="diamond" style="top:26%"></div>
+        <div class="diamond" style="top:38%"></div>
+        <div class="plume-wash"></div>
+      </div>
+    </div>
+
+    <!-- phase callouts -->
+    <div class="callout" id="c-hold">
+      <div class="eyebrow">T−10 · Terminal count</div>
+      <h2>Ask the Earth<br>a question</h2>
+      <p>Every day satellites return more of India than anyone can look at. The
+         answers are already in the pixels. Getting them out takes a specialist,
+         a workstation and an afternoon.</p>
+    </div>
+
+    <div class="callout" id="c-ignite">
+      <div class="eyebrow">T−0 · Ignition</div>
+      <h2>Plain<br>English in</h2>
+      <p>“What changed here since 2019?” No band maths, no GIS session, no
+         model to pick. The question is the interface.</p>
+    </div>
+
+    <div class="callout" id="c-lift">
+      <div class="eyebrow">T+00:12 · Liftoff</div>
+      <h2>It decides<br>what to run</h2>
+      <p>A planner reads the question, checks the images can actually answer it,
+         then dispatches the specialists that fit — and shows you the plan
+         before it runs.</p>
+    </div>
+
+    <div class="callout" id="c-ascent">
+      <div class="eyebrow">T+02:24 · Stage separation</div>
+      <h2>Answers that<br>point at proof</h2>
+      <p>Every result names the model that produced it and highlights the region
+         it came from. Nothing arrives unattributed.</p>
+    </div>
+
+    <div class="callout" id="c-orbit">
+      <div class="eyebrow">T+17:40 · Orbital insertion</div>
+      <h2>And it says<br>when it can’t</h2>
+      <p>Ask what changed and hand it one image, and it refuses. Hand it two
+         tiles of different places, and it says so instead of inventing a
+         change map.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ PAYLOAD ═══════════════ -->
+<main id="payload">
+
+  <div class="cta-block">
+    <p class="cta-kicker">Insertion complete · payload deployed</p>
+    <h2 class="cta-heading">See it work on your own imagery</h2>
+    <p class="cta-sub">Upload a tile, ask a question, and watch the system decide
+       what to run — live, in your browser, right now.</p>
+    <a href="console.html" class="cta-button">Try It Yourself →</a>
+  </div>
+
+  <section class="bay">
+    <div class="bay-head">Payload · Working</div>
+    <h3 class="bay-title">An analyst you can ask</h3>
+    <p class="lede">
+      One tile. Three questions. Watch what the system does with each — and
+      what it does with the one it cannot answer.
+    </p>
+
+    <!-- Console: the product, running. Prose describes; this demonstrates. -->
+    <div class="console" id="console">
+      <div class="console-scene">
+        <svg viewBox="0 0 300 300" class="tile" aria-label="Satellite tile: fields, river, road and a building cluster">
+          <defs>
+            <clipPath id="tileclip"><rect width="300" height="300"/></clipPath>
+            <filter id="grain">
+              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3"/>
+              <feColorMatrix type="saturate" values="0"/>
+              <feComponentTransfer><feFuncA type="linear" slope=".13"/></feComponentTransfer>
+            </filter>
+          </defs>
+          <g clip-path="url(#tileclip)">
+            <rect width="300" height="300" fill="#5A6B47"/>
+
+            <!-- parcelled fields, each a different crop stage -->
+            <g>
+              <path d="M0 0 h118 v96 H0 Z"      fill="#6E8450"/>
+              <path d="M118 0 h84 v72 h-84 Z"   fill="#87975A"/>
+              <path d="M202 0 h98 v104 h-98 Z"  fill="#5E7345"/>
+              <path d="M0 96 h96 v58 H0 Z"      fill="#7C8E52"/>
+              <path d="M118 72 h84 v54 h-84 Z"  fill="#657A49"/>
+              <path d="M202 104 h98 v46 h-98 Z" fill="#7A8C55"/>
+            </g>
+            <!-- plough rows, direction varies per parcel -->
+            <g opacity=".28">
+              <path d="M0 6 h118 M0 16 h118 M0 26 h118 M0 36 h118 M0 46 h118
+                       M0 56 h118 M0 66 h118 M0 76 h118 M0 86 h118" stroke="#3E4C30" stroke-width="1.6"/>
+              <path d="M126 0 v72 M136 0 v72 M146 0 v72 M156 0 v72 M166 0 v72
+                       M176 0 v72 M186 0 v72 M196 0 v72" stroke="#3E4C30" stroke-width="1.6"/>
+              <path d="M208 8 h92 M208 20 h92 M208 32 h92 M208 44 h92 M208 56 h92
+                       M208 68 h92 M208 80 h92 M208 92 h92" stroke="#3E4C30" stroke-width="1.4"/>
+            </g>
+            <!-- field boundaries -->
+            <g stroke="#46543A" stroke-width="1.6" fill="none" opacity=".9">
+              <path d="M118 0 V126 M202 0 V150 M0 96 H96 M118 72 H202 M0 154 H96 M202 104 H300"/>
+            </g>
+
+            <!-- river with wet banks -->
+            <path d="M-10 172 q78 -26 152 2 q72 28 168 4 v30 q-96 24 -168 -4
+                     q-74 -28 -152 -2 Z" fill="#4A6E52" opacity=".55"/>
+            <path d="M-10 178 q78 -24 152 2 q72 26 168 4 v17 q-96 22 -168 -4
+                     q-74 -26 -152 -2 Z" fill="#33566E"/>
+            <path d="M-10 180 q78 -24 152 2 q72 26 168 4" stroke="#5C8AA6"
+                  stroke-width="1.4" fill="none" opacity=".7"/>
+
+            <!-- road with centre marking -->
+            <path d="M0 258 h300" stroke="#7E8375" stroke-width="9"/>
+            <path d="M0 258 h300" stroke="#9AA08F" stroke-width="1.2"
+                  stroke-dasharray="9 8" opacity=".8"/>
+            <path d="M112 300 L120 214 h7 L124 300 Z" fill="#7E8375"/>
+
+            <!-- building cluster, with cast shadows to the north-east -->
+            <g>
+              <g fill="#2C3327" opacity=".45">
+                <rect x="30" y="200" width="36" height="26"/>
+                <rect x="74" y="210" width="26" height="18"/>
+                <rect x="30" y="238" width="22" height="20"/>
+                <rect x="60" y="236" width="38" height="20"/>
+              </g>
+              <g fill="#9E9A8C">
+                <rect x="26" y="196" width="36" height="26"/>
+                <rect x="70" y="206" width="26" height="18"/>
+                <rect x="26" y="234" width="22" height="20"/>
+                <rect x="56" y="232" width="38" height="20"/>
+              </g>
+              <g fill="#B4B0A0">
+                <rect x="26" y="196" width="36" height="7"/>
+                <rect x="70" y="206" width="26" height="5"/>
+              </g>
+            </g>
+
+            <!-- storage yard, east -->
+            <rect x="204" y="216" width="72" height="46" fill="#8A7A5C"/>
+            <g fill="#6F6247" opacity=".7">
+              <rect x="210" y="222" width="60" height="7"/>
+              <rect x="210" y="234" width="60" height="7"/>
+              <rect x="210" y="246" width="60" height="7"/>
+            </g>
+
+            <!-- sensor grain -->
+            <rect width="300" height="300" filter="url(#grain)" opacity=".5"/>
+          </g>
+          <rect id="evbox" x="20" y="192" width="80" height="66"
+                fill="none" stroke="#FF5C00" stroke-width="3" opacity="0"/>
+          <text id="evlabel" x="20" y="186" font-family="monospace" font-size="11"
+                fill="#FF5C00" opacity="0">—</text>
+        </svg>
+        <div class="tile-meta">
+          <span>VRSBench · tile 04117</span>
+          <span id="tile-task">—</span>
+        </div>
+      </div>
+
+      <div class="console-side">
+        <div class="q-label">Question</div>
+        <div class="q-text"><span id="qtext"></span><i class="caret"></i></div>
+
+        <div class="plan-label">Plan</div>
+        <ol class="plan" id="plan">
+          <li data-k="parse"><b>parse</b><span>reads the question into a task</span></li>
+          <li data-k="validate"><b>validate</b><span>checks the tile can answer it</span></li>
+          <li data-k="plan"><b>route</b><span>picks the specialist</span></li>
+          <li data-k="execute"><b>execute</b><span>runs it</span></li>
+          <li data-k="fuse"><b>fuse</b><span>combines the outputs</span></li>
+          <li data-k="ground"><b>ground</b><span>attaches the evidence</span></li>
+        </ol>
+
+        <div class="a-label">Answer</div>
+        <p class="a-text" id="atext">—</p>
+        <div class="a-meta" id="ameta"></div>
+      </div>
+    </div>
+</section>
+
+  <section class="bay">
+    <div class="bay-head">Ground segment · Training data</div>
+    <h3 class="bay-title">What it<br>learns from</h3>
+    <p class="lede">
+      DrishtiX is trained and evaluated on <strong>VRSBench</strong>, a versatile
+      vision-language benchmark for remote sensing image understanding
+      (NeurIPS 2024). It is built on the DOTA-v2 and DIOR imagery collections,
+      and every caption in it was checked by a human rather than accepted from
+      a model.
+    </p>
+
+    <div class="readouts">
+      <div class="readout">
+        <div class="figure">29,614</div>
+        <div class="label">Remote sensing images, each with a human-verified detailed caption</div>
+      </div>
+      <div class="readout">
+        <div class="figure">52,472</div>
+        <div class="label">Object references, for grounding a named thing in a scene</div>
+      </div>
+      <div class="readout">
+        <div class="figure">123,221</div>
+        <div class="label">Open-ended question–answer pairs</div>
+      </div>
+      <div class="readout">
+        <div class="figure">3</div>
+        <div class="label">Tasks in one dataset: captioning, visual grounding, and VQA</div>
+      </div>
+    </div>
+
+    <p class="lede" style="margin-top:34px">
+      One benchmark covering all three tasks is what makes the router worth
+      building — the same images can be asked to describe, to locate, or to
+      answer, and something has to decide which is being requested.
+      <a href="https://huggingface.co/datasets/xiang709/VRSBench"
+         target="_blank" rel="noopener">huggingface.co/datasets/xiang709/VRSBench</a>
+    </p>
+  </section>
+
+  <section class="bay">
+    <div class="bay-head">Telemetry · Measured, not claimed</div>
+    <h3 class="bay-title">Where it<br>stands today</h3>
+    <div class="readouts">
+      <div class="readout">
+        <div class="figure">76.7%</div>
+        <div class="label">Router accuracy, rule parser, on 30 labelled questions</div>
+      </div>
+      <div class="readout">
+        <div class="figure">6/6</div>
+        <div class="label">Change scenes localised correctly, including two that must report nothing</div>
+      </div>
+      <div class="readout">
+        <div class="figure">50</div>
+        <div class="label">Tests passing across three suites</div>
+      </div>
+      <div class="readout">
+        <div class="figure">3</div>
+        <div class="label">Runtime dependencies. No GPU needed to run the system</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bay">
+    <div class="bay-head">Flight status · Honest accounting</div>
+    <h3 class="bay-title">What flies,<br>what doesn’t</h3>
+    <div class="ledger">
+      <div class="ledger-row">
+        <span class="state nominal">Nominal</span>
+        <span class="what">Orchestration layer
+          <em>Parser, validator, planner, fusion, evidence grounding — complete and tested.</em></span>
+      </div>
+      <div class="ledger-row">
+        <span class="state nominal">Nominal</span>
+        <span class="what">Change detection
+          <em>Typed land-cover transitions, change heatmap, co-registration veto.</em></span>
+      </div>
+      <div class="ledger-row">
+        <span class="state nominal">Nominal</span>
+        <span class="what">Classical baselines
+          <em>Spectral and pixel-difference models. Real floor to measure against.</em></span>
+      </div>
+      <div class="ledger-row">
+        <span class="state pending">Pending</span>
+        <span class="what">Fine-tuned vision-language model
+          <em>Training pipeline written; QLoRA run scheduled. Plugs in behind a fixed interface.</em></span>
+      </div>
+      <div class="ledger-row">
+        <span class="state pending">Pending</span>
+        <span class="what">LLM query parser
+          <em>Implemented and cached; closes the seven cases the rule parser misses.</em></span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span><a href="console.html" style="color:inherit">Open the console →</a></span>
+    <span>DrishtiX · SIH26167</span>
+    <span>Indian Space Research Organisation</span>
+    <span>Smart India Hackathon 2026</span>
+  </footer>
+</main>
+
+<script>
+(function(){
+"use strict";
+
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ── Starfield ────────────────────────────────────────────────── */
+const canvas = document.getElementById("stars");
+const ctx = canvas.getContext("2d");
+let stars = [];
+
+function seedStars(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width  = window.innerWidth  * dpr;
+  canvas.height = window.innerHeight * dpr;
+  canvas.style.width  = window.innerWidth + "px";
+  canvas.style.height = window.innerHeight + "px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const n = Math.round((window.innerWidth * window.innerHeight) / 5200);
+  stars = [];
+  for(let i=0;i<n;i++){
+    stars.push({
+      x: Math.random()*window.innerWidth,
+      y: Math.random()*window.innerHeight,
+      r: Math.random()*1.15 + .25,
+      a: Math.random()*.65 + .35
+    });
+  }
+  paintStars();
+}
+function paintStars(){
+  ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  drawStaticStars();
+  ctx.globalAlpha = 1;
+}
+function drawStaticStars(){
+  // A floor so a few stars are visible as soon as the sky has any opacity
+  // at all, ramping to the full field by orbital insertion.
+  const n = Math.max(1, Math.round(stars.length * (0.12 + 0.88*starDensity)));
+  for(let i=0;i<n;i++){
+    const s = stars[i];
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = "#EAF1FA";
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+/* ── Shooting stars ───────────────────────────────────────────────
+   Deep space is the longest, plainest stretch of the flight - this is
+   what turns it from a static backdrop into something worth watching
+   while you scroll. Only spawns once the star layer has actually faded
+   in, so nothing streaks across a still-bright dawn sky. Spawn rate rises
+   with starDensity too, same reasoning as the field itself: sparse and
+   occasional low down, frequent by the time you reach orbit. */
+let shootingStars = [];
+let lastSpawn = 0;
+let starDensity = 0;
+
+function spawnShootingStar(){
+  const fromLeft = Math.random() < 0.5;
+  const y0 = Math.random() * window.innerHeight * 0.6;
+  const x0 = fromLeft ? -40 : window.innerWidth + 40;
+  const angle = (fromLeft ? 1 : -1) * (18 + Math.random()*12) * Math.PI/180;
+  const speed = 820 + Math.random()*480;
+  shootingStars.push({
+    x:x0, y:y0,
+    vx:Math.cos(angle)*speed*(fromLeft?1:-1),
+    vy:Math.sin(angle)*speed,
+    len:80 + Math.random()*70,
+    born:performance.now(),
+    life:650 + Math.random()*300
+  });
+}
+
+function drawShootingStars(now, dt){
+  for(let i=shootingStars.length-1;i>=0;i--){
+    const s = shootingStars[i];
+    const age = now - s.born;
+    if(age > s.life){ shootingStars.splice(i,1); continue; }
+    s.x += s.vx*dt; s.y += s.vy*dt;
+    const t = age/s.life;
+    const alpha = Math.sin(t*Math.PI);           // fade in, then out
+    const mag = Math.hypot(s.vx, s.vy) || 1;
+    const dx = -(s.vx/mag)*s.len, dy = -(s.vy/mag)*s.len;
+
+    const grad = ctx.createLinearGradient(s.x, s.y, s.x+dx, s.y+dy);
+    grad.addColorStop(0, `rgba(255,255,255,${alpha})`);
+    grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x+dx, s.y+dy);
+    ctx.stroke();
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#FFFFFF";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 1.3, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+let lastFrame = performance.now();
+function animateSky(now){
+  const dt = Math.min((now-lastFrame)/1000, 0.05);
+  lastFrame = now;
+
+  ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+  drawStaticStars();
+
+  const skyVisible = parseFloat(canvas.style.opacity || "0") > 0.05;
+  // Gap shrinks from a lazy ~1.9-4.5s near the edge of dusk down to a
+  // lively ~0.6-1.6s by orbit, tracking the same density curve as the
+  // static field so the whole sky visibly comes alive together.
+  const gapMin = 1900 - 1300*starDensity;
+  const gapSpread = 2600 - 1700*starDensity;
+  if(skyVisible && now - lastSpawn > gapMin + Math.random()*gapSpread){
+    lastSpawn = now;
+    spawnShootingStar();
+  }
+  drawShootingStars(now, dt);
+
+  requestAnimationFrame(animateSky);
+}
+
+seedStars();
+window.addEventListener("resize", seedStars);
+
+/* ── Smoke puffs ──────────────────────────────────────────────── */
+const smoke = document.getElementById("smoke");
+const puffs = [];
+if(!reduced){
+  /* Built in mirrored pairs. Random signs on independent puffs cluster to
+     one side often enough to look like a bug, so symmetry is constructed. */
+  for(let i=0;i<13;i++){
+    const size   = 62 + Math.random()*96;
+    const spread = 70 + Math.random()*210;
+    const rise   = 14 + Math.random()*74;
+    const delay  = Math.random();
+    const offset = Math.random()*7;
+
+    for(const dir of [-1, 1]){
+      const d = document.createElement("div");
+      d.className = "puff";
+      d.style.width  = size + "px";
+      d.style.height = size + "px";
+      d.style.left   = (50 + dir*offset) + "%";
+      d.style.marginLeft = (-size/2) + "px";
+      puffs.push({el:d, dir, spread, rise, delay});
+      smoke.appendChild(d);
+    }
+  }
+}
+
+/* ── Elements ─────────────────────────────────────────────────── */
+const stage    = document.getElementById("flight");
+const vehicle  = document.getElementById("vehicle");
+const plume    = document.getElementById("plume");
+const straps   = document.getElementById("straps");
+const pad      = document.getElementById("pad");
+const complex  = document.getElementById("complex");
+const mst      = document.getElementById("mst");
+const limb     = document.getElementById("limb");
+const skyHigh  = document.getElementById("sky-high");
+const skySpace = document.getElementById("sky-space");
+const tel      = document.getElementById("telemetry");
+const telClock = document.getElementById("tel-clock");
+const telAlt   = document.getElementById("tel-alt");
+const telVel   = document.getElementById("tel-vel");
+const telPhase = document.getElementById("tel-phase");
+const throttle = document.getElementById("throttle-bar");
+const hint     = document.getElementById("hint");
+
+const callouts = [
+  {el:document.getElementById("c-hold"),   in:-0.03, out:0.13},
+  {el:document.getElementById("c-ignite"), in:0.15, out:0.30},
+  {el:document.getElementById("c-lift"),   in:0.31, out:0.52},
+  {el:document.getElementById("c-ascent"), in:0.57, out:0.73},
+  {el:document.getElementById("c-orbit"),  in:0.78, out:0.97}
+];
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+/** Normalised progress through a window, clamped to 0..1. */
+const seg = (p,a,b) => clamp((p-a)/(b-a),0,1);
+/** Ease so callouts settle rather than snap. */
+const easeOut = t => 1-Math.pow(1-t,3);
+
+function fmtClock(sec){
+  const sign = sec < 0 ? "\u2212" : "+";
+  const s = Math.abs(sec);
+  const hh = String(Math.floor(s/3600)).padStart(2,"0");
+  const mm = String(Math.floor(s%3600/60)).padStart(2,"0");
+  const ss = String(Math.floor(s%60)).padStart(2,"0");
+  return `T${sign}${hh}:${mm}:${ss}`;
+}
+
+/* ── Flight model ─────────────────────────────────────────────── */
+/* Physically shaped rather than linear: altitude follows a power curve,
+   velocity approaches orbital asymptotically. Numbers land near a real
+   SSO insertion (~700 km, ~7.5 km/s) so anyone who knows the domain
+   sees plausible figures instead of a scroll percentage. */
+
+function flight(p){
+  const lit    = seg(p,0.11,0.20);          // ignition ramp
+  const flying = seg(p,0.20,1.00);          // off the pad
+  const alt    = 720 * Math.pow(flying,2.35);
+  const vel    = 7580 * (1-Math.exp(-3.4*flying));
+
+  /* Range clock is piecewise. It must read T-minus right up to the moment
+     the vehicle leaves the pad, then count up. A single linear map goes
+     positive during the hold, which is wrong and a domain reader spots it
+     immediately. */
+  const tsec = p < 0.20
+    ? -10 * (1 - seg(p,0,0.20))
+    : 1060 * seg(p,0.20,1.00);
+
+  let phase = "HOLD";
+  if(p >= 0.11) phase = "IGNITION";
+  if(p >= 0.20) phase = "LIFTOFF";
+  if(p >= 0.40) phase = "MAX-Q";
+  if(p >= 0.57) phase = "STAGE SEP";
+  if(p >= 0.78) phase = "INSERTION";
+  if(p >= 0.95) phase = "NOMINAL";
+
+  return {lit, flying, alt, vel, tsec, phase};
+}
+
+/* ── Render ───────────────────────────────────────────────────── */
+let ticking = false;
+let lastP = -1;
+
+function render(){
+  ticking = false;
+
+  const rect = stage.getBoundingClientRect();
+  const total = stage.offsetHeight - window.innerHeight;
+  const p = clamp(-rect.top / total, 0, 1);
+  if(Math.abs(p-lastP) < 0.0004) return;
+  lastP = p;
+
+  const f = flight(p);
+
+  /* Vehicle: hold, shake through ignition, then climb and shrink. */
+  const climb = Math.pow(f.flying,1.30) * (window.innerHeight*0.50);
+  const shake = f.lit > 0 && f.flying < 0.14
+    ? (Math.random()-.5) * 3.6 * f.lit
+    : 0;
+  const scale = 1 - 0.62*seg(p,0.34,1.0);
+  vehicle.style.transform =
+    `translateX(-50%) translate3d(${shake.toFixed(2)}px, ${(-climb).toFixed(1)}px, 0) scale(${scale.toFixed(3)})`;
+
+  /* Exhaust throttle. */
+  const throt = f.lit * (1 - 0.35*seg(p,0.72,1));
+  const expand = 1 + 1.5*seg(p,0.30,0.80);      /* vacuum plume expansion */
+  plume.style.transform =
+    `translateX(-50%) scaleY(${(throt*expand).toFixed(3)}) scaleX(${(0.72+0.28*throt).toFixed(3)})`;
+  plume.style.opacity = throt.toFixed(3);
+  throttle.style.width = Math.round(throt*100) + "%";
+
+  /* Booster jettison at staging. */
+  const sep = seg(p,0.57,0.66);
+  if(straps){
+    straps.style.opacity = (1-sep).toFixed(3);
+    straps.style.transform = `translateY(${(sep*46).toFixed(1)}px) scale(${(1-sep*0.12).toFixed(3)})`;
+  }
+
+  /* Pad recedes with the vehicle, then leaves frame. */
+  const padDrop = Math.pow(f.flying,1.55) * window.innerHeight * 0.95;
+  pad.style.transform = `translateX(-50%) translate3d(0,${padDrop.toFixed(1)}px,0)`;
+  pad.style.opacity = (1-seg(p,0.30,0.46)).toFixed(3);
+
+  /* Mobile Service Tower retreats on its rails during the terminal count,
+     the way a real one does before a launch. It clears the vehicle before
+     ignition, so by T-0 the pad is bare. This is the background doing
+     something rather than sitting there. */
+  const retreat = seg(p,0.015,0.105);
+  mst.style.transform =
+    `translateX(calc(-50% - ${(retreat*32).toFixed(2)}vw))`;
+  mst.style.opacity = (1 - 0.55*retreat).toFixed(3);   /* recedes clear of the HUD */
+
+  /* Complex parallaxes at a fraction of the pad rate, then clears frame.
+     Distant structures move less than near ones - that difference is what
+     sells the climb. */
+  complex.style.transform = `translate3d(0,${(padDrop*0.34).toFixed(1)}px,0)`;
+  complex.style.opacity = (1 - seg(p,0.26,0.44)).toFixed(3);
+
+  /* Ground wash: billows on ignition, thins once clear of the pad. */
+  if(!reduced){
+    const wash = f.lit * (1-seg(p,0.30,0.50));
+    smoke.style.opacity = wash.toFixed(3);
+    if(wash > 0.01){
+      const t = seg(p,0.11,0.42);
+      for(const q of puffs){
+        const local = clamp(t - q.delay*0.22, 0, 1);
+        const x = q.dir * q.spread * local;
+        const y = -q.rise * local;
+        const sc = 0.34 + local*1.5;
+        q.el.style.transform =
+          `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) scale(${sc.toFixed(2)})`;
+        q.el.style.opacity = (1-local*0.82).toFixed(3);
+      }
+    }
+  }
+
+  /* Sky: the background is the altimeter. */
+  skyHigh.style.opacity  = seg(p,0.30,0.62).toFixed(3);
+  skySpace.style.opacity = seg(p,0.60,0.82).toFixed(3);
+  canvas.style.opacity   = (seg(p,0.46,0.78)*0.95).toFixed(3);
+
+  // The field itself gets denser on the way up, not just more visible - a
+  // handful of stars near the edge of dusk, the full field by orbit. Runs
+  // well past where the canvas already reads as fully opaque, so density
+  // keeps building through the whole space stretch of the flight instead
+  // of maxing out the moment the sky finishes fading in.
+  starDensity = seg(p, 0.42, 1.0);
+
+  /* Earth limb rises on insertion. */
+  const limbP = seg(p,0.74,1.0);
+  limb.style.opacity = limbP.toFixed(3);
+  limb.style.transform =
+    `translate(-50%, ${(100 - limbP*38).toFixed(1)}%) rotate(${(limbP*4-2).toFixed(2)}deg)`;
+
+  /* Telemetry. */
+  /* The HUD is flight instrumentation. Once the payload section takes over
+     it has nothing to report, so it stands down rather than floating over
+     the content. */
+  const done = p >= 0.999;
+  tel.classList.toggle("live", p > 0.015);
+  tel.classList.toggle("retired", done);
+  telClock.textContent = fmtClock(f.tsec);
+  telAlt.textContent = f.alt < 10 ? f.alt.toFixed(1) : Math.round(f.alt);
+  telVel.textContent = Math.round(f.vel).toLocaleString("en-IN");
+  telPhase.textContent = f.phase;
+
+  hint.style.opacity = (1 - seg(p,0.01,0.06)).toFixed(2);
+
+  /* Callouts fade through their window. */
+  for(const c of callouts){
+    const a = seg(p, c.in, c.in+0.028);
+    const b = seg(p, c.out-0.028, c.out);
+    const o = a * (1-b);
+    c.el.style.opacity = o.toFixed(3);
+    c.el.style.transform = `translateY(${((1-easeOut(a))*20).toFixed(1)}px)`;
+    c.el.style.visibility = o < 0.01 ? "hidden" : "visible";
+  }
+}
+
+function onScroll(){
+  if(!ticking){
+    ticking = true;
+    requestAnimationFrame(render);
+  }
+}
+
+if(!reduced){
+  window.addEventListener("scroll", onScroll, {passive:true});
+  window.addEventListener("resize", onScroll);
+  render();
+  requestAnimationFrame(animateSky);
+
+  /* Engine flicker: only while lit, and only touching opacity. */
+  const core = document.querySelector(".plume-core");
+  setInterval(function(){
+    if(lastP > 0.11 && lastP < 0.99){
+      core.style.opacity = (0.82 + Math.random()*0.18).toFixed(2);
+    }
+  }, 70);
+} else {
+  paintStars();
+}
+
+})();
+
+/* ──────────────────────────────────────────────────────────────────
+   Console: runs the product rather than describing it.
+   Three scenarios cycle. The third is a refusal - it is the most
+   persuasive of the three, so it is not hidden at the end of a list.
+   ────────────────────────────────────────────────────────────────── */
+(function(){
+  "use strict";
+  const root = document.getElementById("console");
+  if(!root) return;
+
+  const qEl     = document.getElementById("qtext");
+  const aEl     = document.getElementById("atext");
+  const metaEl  = document.getElementById("ameta");
+  const taskEl  = document.getElementById("tile-task");
+  const boxEl   = document.getElementById("evbox");
+  const labEl   = document.getElementById("evlabel");
+  const steps   = [...document.querySelectorAll("#plan li")];
+
+  const SCENARIOS = [
+    {
+      q: "Where are the buildings in this tile?",
+      task: "ground",
+      run: ["parse","validate","plan","execute","fuse","ground"],
+      box: {x:18, y:190, w:84, h:70, label:"buildings · 0.88"},
+      a: "Four structures in the south-west quadrant, between the road and the river bend.",
+      meta: "heuristic-ground-v1 · 88% · 41 ms"
+    },
+    {
+      q: "How much of this tile is farmland?",
+      task: "vqa",
+      run: ["parse","validate","plan","execute","fuse","ground"],
+      box: {x:6, y:6, w:288, h:126, label:"cropland · 0.44"},
+      a: "About 44% of the tile reads as cultivated field, concentrated in the northern half.",
+      meta: "heuristic-cover-v1 · 44% · 28 ms"
+    },
+    {
+      q: "What changed here since 2019?",
+      task: "change",
+      run: ["parse","validate"],
+      stop: "validate",
+      box: null,
+      a: "This asks what changed, but only one image was supplied. Add a second image of the same area from a different date.",
+      meta: "refused at validate · no model run",
+      refusal: true
+    }
+  ];
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function reset(){
+    steps.forEach(li => li.className = "");
+    aEl.textContent = "—";
+    aEl.classList.remove("refusal");
+    metaEl.textContent = "";
+    taskEl.textContent = "—";
+    boxEl.setAttribute("opacity","0");
+    labEl.setAttribute("opacity","0");
+  }
+
+  async function type(text, live){
+    qEl.textContent = "";
+    if(reduced){ qEl.textContent = text; return; }
+    for(let i=0;i<text.length;i++){
+      if(!live()) return;
+      qEl.textContent += text[i];
+      await sleep(text[i] === " " ? 22 : 30);
+    }
+  }
+
+  async function run(sc, live){
+    reset();
+    await type(sc.q, live);
+    if(!live()) return;
+    await sleep(360);
+
+    for(const li of steps){
+      const k = li.dataset.k;
+      if(!sc.run.includes(k)){
+        li.className = "skip";           /* never ran - shown, not hidden */
+        continue;
+      }
+      li.className = "on";
+      await sleep(reduced ? 60 : 300);
+      if(!live()) return;
+      if(sc.stop === k){
+        li.className = "skip";
+        break;
+      }
+      li.className = "done";
+    }
+
+    taskEl.textContent = sc.task;
+    await sleep(160);
+    if(!live()) return;
+
+    if(sc.box){
+      boxEl.setAttribute("x", sc.box.x);
+      boxEl.setAttribute("y", sc.box.y);
+      boxEl.setAttribute("width", sc.box.w);
+      boxEl.setAttribute("height", sc.box.h);
+      boxEl.setAttribute("opacity","1");
+      labEl.setAttribute("x", sc.box.x);
+      labEl.setAttribute("y", Math.max(sc.box.y - 6, 12));
+      labEl.textContent = sc.box.label;
+      labEl.setAttribute("opacity","1");
+    }
+
+    aEl.textContent = sc.a;
+    aEl.classList.toggle("refusal", !!sc.refusal);
+    metaEl.textContent = sc.meta;
+  }
+
+  let i = 0, gen = 0, alive = false;
+
+  async function loop(myGen){
+    while(myGen === gen){
+      await run(SCENARIOS[i % SCENARIOS.length], () => myGen === gen);
+      if(myGen !== gen) return;
+      i++;
+      await sleep(3600);
+    }
+  }
+
+  /* Only run while on screen - no work for a section nobody is reading. */
+  const io = new IntersectionObserver(es => {
+    for(const e of es){
+      if(e.isIntersecting){
+        if(alive) continue;
+        alive = true;
+        loop(gen);
+      }else if(alive){
+        alive = false;
+        gen++;                 /* retires the running loop at its next await */
+      }
+    }
+  }, {threshold:.28});
+  io.observe(root);
+})();
+</script>
+</body>
+</html>

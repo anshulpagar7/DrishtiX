@@ -1,0 +1,176 @@
+/* ══════════════════════════════════════════════════════════════════
+   DrishtiX — shared shell.
+
+   Two surfaces, and the split is meaningful rather than decorative:
+     .dark  — sky. Used only by the launch page.
+     .sheet — a topographic analysis sheet. Every working page.
+   You are either looking up through atmosphere or down at Earth data,
+   and the page says which.
+   ══════════════════════════════════════════════════════════════════ */
+
+:root{
+  --vacuum:#03060E;
+  --flame:#FF5C00;
+  --flame-core:#FFD166;
+  --ash:#C9D1D9;
+  --ash-dim:#6B7A8F;
+  --hull:#E8EAED;
+
+  --sheet:#DFE3DE;
+  --plate:#F4F6F2;
+  --ink:#12171C;
+  --ink-soft:#4B5560;
+  --survey:#2F6B52;
+  --rule:rgba(18,23,28,.16);
+  --contour:rgba(60,88,72,.085);
+
+  --display:"Barlow Condensed","Helvetica Neue Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace;
+
+  --gutter:clamp(20px,5vw,64px);
+  --wide:1180px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:var(--body);line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+body.sheet{
+  background:
+    repeating-radial-gradient(ellipse 78% 52% at 12% 8%,
+      transparent 0 52px, var(--contour) 52px 53px),
+    repeating-radial-gradient(ellipse 64% 72% at 92% 58%,
+      transparent 0 61px, var(--contour) 61px 62px),
+    radial-gradient(ellipse 70% 50% at 50% 34%, rgba(255,255,255,.55), transparent 78%),
+    var(--sheet);
+  background-attachment:fixed;
+  color:var(--ink);
+}
+body.dark{background:var(--vacuum);color:var(--ash)}
+
+/* ── Navigation ─────────────────────────────────────────────────── */
+.nav{
+  position:sticky;top:0;z-index:60;
+  display:flex;align-items:center;gap:clamp(14px,2.4vw,34px);
+  padding:14px var(--gutter);
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;
+}
+body.sheet .nav{
+  background:rgba(223,227,222,.86);border-bottom:1px solid var(--rule);
+  backdrop-filter:blur(9px);
+}
+/* Dark theme is the flight sequence, and the vehicle climbs directly through
+   this band of the screen. A flat semi-opaque fill reads as a solid panel
+   the rocket vanishes behind - the fix is a soft top-to-bottom fade, so the
+   nav blends into the sky rather than sitting on top of it, and nothing
+   ascending through it is ever fully hidden. */
+body.dark .nav{
+  background:linear-gradient(180deg,
+    rgba(3,6,14,.58) 0%, rgba(3,6,14,.30) 55%, rgba(3,6,14,0) 100%);
+  border-bottom:1px solid rgba(201,209,217,.10);
+  backdrop-filter:blur(2px);
+}
+.nav .brand{font-weight:600;letter-spacing:.2em;margin-right:auto}
+body.sheet .nav .brand{color:var(--ink)}
+body.dark  .nav .brand{color:var(--hull)}
+.nav .brand small{
+  display:block;font-size:9px;letter-spacing:.16em;font-weight:400;
+  color:var(--ink-soft);margin-top:2px;
+}
+body.dark .nav .brand small{color:var(--ash-dim)}
+.nav a{text-decoration:none;padding-bottom:2px;border-bottom:1px solid transparent}
+body.sheet .nav a{color:var(--ink-soft)}
+body.dark  .nav a{color:var(--ash-dim)}
+body.sheet .nav a:hover,body.sheet .nav a[aria-current]{color:var(--ink);border-bottom-color:var(--survey)}
+body.dark  .nav a:hover,body.dark  .nav a[aria-current]{color:var(--hull);border-bottom-color:var(--flame)}
+.nav .flag{
+  width:20px;height:3px;flex:none;
+  background:linear-gradient(90deg,#FF9933 0 33.3%,#FFF 33.3% 66.6%,#138808 66.6%);
+}
+
+/* ── Page furniture ─────────────────────────────────────────────── */
+main{max-width:var(--wide);margin:0 auto;padding:clamp(38px,7vh,72px) var(--gutter) 90px}
+.eyebrow{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;
+  color:var(--survey);text-transform:uppercase;margin-bottom:18px;
+  display:flex;align-items:center;gap:10px;
+}
+.eyebrow::before{content:"";width:22px;height:1px;background:var(--survey);flex:none}
+h1.title{
+  font-family:var(--display);font-weight:600;
+  font-size:clamp(30px,5vw,54px);line-height:1.02;
+  letter-spacing:-.005em;margin-bottom:20px;
+}
+h2.sub{
+  font-family:var(--display);font-weight:600;
+  font-size:clamp(21px,2.6vw,29px);line-height:1.1;
+  margin:52px 0 16px;
+}
+.lede{font-size:clamp(15.5px,1.7vw,18.5px);max-width:60ch;color:var(--ink-soft);line-height:1.62}
+.lede strong{color:var(--ink);font-weight:500}
+p+p{margin-top:14px}
+a{color:#A8480E}
+a.mono{
+  font-family:var(--mono);font-size:.86em;text-decoration:none;
+  border-bottom:1px solid rgba(168,72,14,.4);
+}
+:focus-visible{outline:2px solid var(--survey);outline-offset:3px}
+
+/* ── Plates, the one container primitive ────────────────────────── */
+.plate{
+  background:var(--plate);border:1px solid var(--rule);
+  box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 18px 44px -32px rgba(18,23,28,.5);
+}
+.plate-head{
+  display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+  padding:12px 18px;border-bottom:1px solid var(--rule);
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--ink-soft);
+}
+
+/* ── Data display ───────────────────────────────────────────────── */
+.readouts{display:grid;gap:26px;margin-top:34px;
+  grid-template-columns:repeat(auto-fit,minmax(148px,1fr));}
+.readout{border-top:2px solid var(--ink);padding-top:12px}
+.readout .figure{
+  font-family:var(--mono);font-size:clamp(23px,3.2vw,33px);font-weight:500;
+  font-variant-numeric:tabular-nums;line-height:1;margin-bottom:8px;
+}
+.readout .label{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+
+.ledger{margin-top:30px;border-top:1px solid var(--rule)}
+.ledger-row{
+  display:grid;grid-template-columns:104px 1fr;gap:20px;
+  padding:16px 0;border-bottom:1px solid rgba(18,23,28,.1);align-items:baseline;
+}
+.state{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase}
+.state.nominal{color:var(--survey)}
+.state.pending{color:#B4531A}
+.state.absent{color:#8A929B}
+.ledger-row .what em{display:block;font-style:normal;font-size:13px;color:var(--ink-soft);margin-top:3px}
+
+table.data{width:100%;border-collapse:collapse;margin-top:24px;font-size:14px}
+table.data th,table.data td{text-align:left;padding:10px 12px;border-bottom:1px solid rgba(18,23,28,.1)}
+table.data th{
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft);border-bottom:1px solid var(--ink);
+}
+table.data td.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+footer{
+  max-width:var(--wide);margin:0 auto;
+  padding:34px var(--gutter) 60px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;
+  color:var(--ink-soft);text-transform:uppercase;
+  display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between;
+}
+
+@media (max-width:720px){
+  .nav{gap:12px;font-size:10px;flex-wrap:wrap}
+  .nav .brand{width:100%;margin-bottom:6px}
+  .ledger-row{grid-template-columns:1fr;gap:4px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

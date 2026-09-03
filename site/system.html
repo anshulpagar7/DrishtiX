@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System — DrishtiX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+<style>
+.stages{margin-top:30px;border-top:2px solid var(--ink)}
+.stage{display:grid;grid-template-columns:52px 150px 1fr;gap:18px;
+  padding:16px 0;border-bottom:1px solid rgba(18,23,28,.1);align-items:baseline}
+.stage .n{font-family:var(--mono);font-size:11px;color:var(--survey)}
+.stage h3{font-family:var(--display);font-size:20px;font-weight:600}
+.stage p{font-size:14px;color:var(--ink-soft)}
+.stage code{font-family:var(--mono);font-size:11.5px;color:var(--ink)}
+.flow{font-family:var(--mono);font-size:12px;line-height:2;color:var(--ink-soft);
+  background:var(--plate);border:1px solid var(--rule);padding:18px;margin-top:26px;
+  overflow-x:auto;white-space:pre}
+@media (max-width:720px){.stage{grid-template-columns:1fr;gap:4px}}
+</style>
+</head>
+<body class="sheet">
+<script src="assets/site.js"></script>
+<script>DRISHTIX_nav();</script>
+<main>
+  <div class="eyebrow">System · Architecture</div>
+  <h1 class="title">Six stages, and a plan you can read</h1>
+  <p class="lede">
+    The contribution is the orchestration layer, not the models. Something
+    decides what to run, says why, runs more than one thing when the task
+    needs it, and combines the results. Adding a capability means registering
+    a model — the routing logic never changes.
+  </p>
+
+<div class="flow">query ─▶ parse ─▶ validate ─▶ plan ─▶ execute ─▶ fuse ─▶ ground ─▶ Answer
+         │         │          │        │          │
+      TaskSpec  may REFUSE  ExecPlan  outputs   veto-aware</div>
+
+  <div class="stages">
+    <div class="stage"><span class="n">01</span><h3>Parse</h3>
+      <p>Natural language becomes a structured <code>TaskSpec</code>: task type,
+         modality, whether it needs an image pair. Rule parser by default; an
+         LLM parser slots in behind the same interface and is cached to disk so
+         a rate limit cannot break a demo.</p></div>
+    <div class="stage"><span class="n">02</span><h3>Validate</h3>
+      <p>Can the supplied images answer this question? Ask what changed with one
+         image and it refuses, and says what to supply instead. Refusal is a
+         first-class outcome, not an error path.</p></div>
+    <div class="stage"><span class="n">03</span><h3>Plan</h3>
+      <p>An <code>ExecutionPlan</code> is produced <em>before</em> anything runs
+         and is attached to the answer. “Why did it do that” has a printed
+         answer. Change queries plan more than one model, because localising a
+         change and describing it are different jobs.</p></div>
+    <div class="stage"><span class="n">04</span><h3>Execute</h3>
+      <p>Models run in priority order. One failing is reported, not propagated —
+         a single bad specialist cannot take the answer down.</p></div>
+    <div class="stage"><span class="n">05</span><h3>Fuse</h3>
+      <p>Outputs combine. Fusion never invents content; it selects, orders and
+         joins text the models actually produced. Disagreement is surfaced and
+         lowers confidence. A <code>veto</code> — say, two tiles of different
+         places — suppresses every other output rather than sitting beside it.</p></div>
+    <div class="stage"><span class="n">06</span><h3>Ground</h3>
+      <p>Every answer carries the region, the model that produced it, and a
+         confidence. Overlays are rendered server-side so there is one source of
+         truth for where a box goes.</p></div>
+  </div>
+
+  <h2 class="sub">Registered models</h2>
+  <p class="lede">Live from the running backend. Priority decides who wins a
+     route: baselines sit at 0 and stay registered forever, so the system
+     degrades instead of failing.</p>
+  <div id="models"><p class="lede" style="font-size:14px">Loading…</p></div>
+
+  <h2 class="sub">Integrating a trained model</h2>
+  <p class="lede">
+    The training module exposes exactly one function,
+    <code style="font-family:var(--mono)">run_vqa(image_path, query, adapter_dir)</code>,
+    returning a fixed JSON shape. <code style="font-family:var(--mono)">models/rsvqa.py</code>
+    is the only file that knows about it. Swap the backbone, retrain, change
+    LoRA rank — nothing else in this repo moves.
+  </p>
+  <table class="data">
+    <thead><tr><th>Their contract</th><th>Ours</th><th>Translation</th></tr></thead>
+    <tbody>
+      <tr><td class="num">bbox [x,y,w,h]</td><td class="num">bbox (x0,y0,x1,y1)</td>
+          <td>pixels → normalised 0–1. Silent if wrong, so it is unit-tested.</td></tr>
+      <tr><td class="num">image_path</td><td class="num">PIL.Image</td>
+          <td>written to a temp file and cleaned up after.</td></tr>
+      <tr><td class="num">confidence</td><td class="num">ModelOutput.confidence</td>
+          <td>passed through. Token-probability proxy, not calibrated.</td></tr>
+      <tr><td class="num">regions[]</td><td class="num">Evidence[]</td>
+          <td>empty regions become whole-image evidence.</td></tr>
+    </tbody>
+  </table>
+
+<script>
+(async function(){
+  const box = document.getElementById("models");
+  try{
+    const ms = await DRISHTIX_api.models();
+    box.innerHTML = `<table class="data">
+      <thead><tr><th>Model</th><th>Tasks</th><th>Priority</th><th>State</th></tr></thead>
+      <tbody>${ms.map(m => `<tr>
+        <td class="num">${m.model_id}</td>
+        <td>${m.tasks.join(", ")}</td>
+        <td class="num">${m.priority}</td>
+        <td><span class="state ${m.loaded?"nominal":"absent"}">${m.loaded?"loaded":"registered"}</span></td>
+      </tr>`).join("")}</tbody></table>`;
+  }catch(e){ DRISHTIX_offline(box, e.message); }
+})();
+</script>
+</main>
+<footer>
+  <span>DrishtiX · SIH26167</span>
+  <span>Indian Space Research Organisation</span>
+  <span>Smart India Hackathon 2026</span>
+</footer>
+</body>
+</html>

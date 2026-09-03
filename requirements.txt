@@ -1,0 +1,8 @@
+# Week 1-2 runtime. The app, router, heuristics and eval all run on these.
+# No GPU, no accounts, no downloads.
+streamlit>=1.30
+pillow>=10.0
+numpy>=1.24
+
+# The LLM parser uses stdlib urllib - no extra dependency.
+# For training and the VLM, see requirements-train.txt

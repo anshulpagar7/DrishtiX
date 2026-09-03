@@ -1,0 +1,33 @@
+[project]
+name = "satquery"
+version = "0.3.0"
+description = "Agentic vision-language assistant for satellite imagery (SIH 2026, SIH26167)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "streamlit>=1.30",
+    "pillow>=10.0",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+# GPU machines only. See train/kaggle_setup.md
+train = [
+    "torch>=2.2",
+    "transformers>=4.45",
+    "accelerate>=0.30",
+    "peft>=0.11",
+    "bitsandbytes>=0.43",
+    "datasets>=2.19",
+    "sentencepiece",
+    "protobuf",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]

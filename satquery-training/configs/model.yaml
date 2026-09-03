@@ -1,0 +1,29 @@
+# Base backbone + LoRA settings.
+# Swap `base_model` to try GeoChat instead of RS-LLaVA without touching any code.
+
+base_model:
+  # Default: RS-LLaVA (domain-adapted LLaVA checkpoint for RS captioning/VQA)
+  name: "BigData-KSU/RS-llava-v1.5-7b-LoRA"
+  # Alternative (stronger grounding, heavier): "MBZUAI/geochat-7B"
+  revision: "main"
+  load_in_4bit: true          # QLoRA — needed to fit on a single T4/16GB
+  trust_remote_code: true
+
+lora:
+  r: 16                       # rank — 8-16 is a good starting range for a hackathon budget
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules:             # attention projection layers — standard LLaVA/LLaMA target set
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+image:
+  max_resolution: 336         # matches typical CLIP-ViT vision tower input size
+  patch_grouping: false       # set true only if using a tiling-based model (e.g. GeoLLaVA-8K)

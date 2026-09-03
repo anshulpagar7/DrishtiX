@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data — DrishtiX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+
+</head>
+<body class="sheet">
+<script src="assets/site.js"></script>
+<script>DRISHTIX_nav();</script>
+<main>
+  <div class="eyebrow">Ground segment · Training data</div>
+  <h1 class="title">What it learns from</h1>
+  <p class="lede">
+    DrishtiX trains and evaluates on <strong>VRSBench</strong>, a versatile
+    vision-language benchmark for remote sensing image understanding
+    (NeurIPS 2024). It is built on the DOTA-v2 and DIOR imagery collections,
+    and every caption in it was checked by a human rather than accepted from a
+    model.
+  </p>
+
+  <div class="readouts">
+    <div class="readout"><div class="figure">29,614</div>
+      <div class="label">Images, each with a human-verified detailed caption</div></div>
+    <div class="readout"><div class="figure">52,472</div>
+      <div class="label">Object references, for grounding a named thing in a scene</div></div>
+    <div class="readout"><div class="figure">123,221</div>
+      <div class="label">Open-ended question–answer pairs</div></div>
+    <div class="readout"><div class="figure">3</div>
+      <div class="label">Tasks in one dataset: captioning, grounding, VQA</div></div>
+  </div>
+
+  <h2 class="sub">Why one dataset spanning three tasks matters</h2>
+  <p class="lede">
+    The same images can be asked to describe, to locate, or to answer — and
+    something has to decide which is being requested. That is the entire
+    argument for building a router rather than a wrapper, and VRSBench is what
+    makes it testable: one image set, three ground truths.
+    <a class="mono" href="https://huggingface.co/datasets/xiang709/VRSBench"
+       target="_blank" rel="noopener">huggingface.co/datasets/xiang709/VRSBench</a>
+  </p>
+
+  <h2 class="sub">Task mixture</h2>
+  <p class="lede">Set in <code style="font-family:var(--mono)">training/configs/training.yaml</code>.
+     Without an explicit mixture the model learns whichever annotation type is
+     most numerous and quietly stops doing the others.</p>
+  <table class="data">
+    <thead><tr><th>Task</th><th>Share</th><th>What it teaches</th></tr></thead>
+    <tbody>
+      <tr><td class="num">vqa_open</td><td class="num">0.40</td>
+          <td>Free-form answers about scene content</td></tr>
+      <tr><td class="num">vqa_closed</td><td class="num">0.30</td>
+          <td>Yes/no and counting — the part that is exactly scorable</td></tr>
+      <tr><td class="num">grounding</td><td class="num">0.30</td>
+          <td>Referring expression to bounding box</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sub">Honest note on scale</h2>
+  <p class="lede">
+    The default run caps at <strong>4,000 samples</strong>, not the full
+    benchmark. That is a deliberate hackathon choice: get an adapter that works
+    end to end, then scale. Any number reported from a 4k subset should be
+    described as exactly that — an evaluator will ask, and “we trained on a
+    filtered subset to get the pipeline working” is a much better answer than a
+    figure that cannot be reproduced.
+  </p>
+</main>
+<footer>
+  <span>DrishtiX · SIH26167</span>
+  <span>Indian Space Research Organisation</span>
+  <span>Smart India Hackathon 2026</span>
+</footer>
+</body>
+</html>

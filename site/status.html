@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status — DrishtiX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+
+</head>
+<body class="sheet">
+<script src="assets/site.js"></script>
+<script>DRISHTIX_nav();</script>
+<main>
+  <div class="eyebrow">Status · Honest accounting</div>
+  <h1 class="title">What flies, what doesn't</h1>
+  <p class="lede">
+    Live system state, then measured results, then the parts that are not
+    built yet. In that order on purpose — a page that leads with capability
+    and buries the gaps is the one that gets caught in questions.
+  </p>
+
+  <h2 class="sub">Live</h2>
+  <div id="live"><p class="lede" style="font-size:14px">Checking backend…</p></div>
+
+  <h2 class="sub">Measured</h2>
+  <div class="readouts">
+    <div class="readout"><div class="figure">76.7%</div>
+      <div class="label">Router accuracy, rule parser, 30 labelled questions</div></div>
+    <div class="readout"><div class="figure">6/6</div>
+      <div class="label">Change scenes correct, including two that must report nothing</div></div>
+    <div class="readout"><div class="figure">50</div>
+      <div class="label">Tests passing across three suites</div></div>
+    <div class="readout"><div class="figure">3</div>
+      <div class="label">Runtime dependencies. No GPU needed to run the system</div></div>
+  </div>
+  <p class="lede" style="margin-top:22px;font-size:14px">
+    Mean best IoU on change localisation is 9.2% — low <strong>by
+    construction</strong>, because the detector reports 8×8 grid cells while
+    ground truth is a large free-form region. Hit rate is the meaningful metric
+    there. Both are reported; quoting one without the other is misleading.
+  </p>
+
+  <h2 class="sub">Build state</h2>
+  <div class="ledger">
+    <div class="ledger-row"><span class="state nominal">Nominal</span>
+      <span class="what">Orchestration layer
+        <em>Parser, validator, planner, fusion, evidence grounding. Complete, tested.</em></span></div>
+    <div class="ledger-row"><span class="state nominal">Nominal</span>
+      <span class="what">Change detection
+        <em>Typed land-cover transitions, change heatmap, co-registration veto.</em></span></div>
+    <div class="ledger-row"><span class="state nominal">Nominal</span>
+      <span class="what">Classical baselines
+        <em>Spectral and pixel-difference models. The floor every result is measured against.</em></span></div>
+    <div class="ledger-row"><span class="state nominal">Nominal</span>
+      <span class="what">HTTP API + multi-page front end
+        <em>FastAPI serving the pipeline; console runs against it live.</em></span></div>
+    <div class="ledger-row"><span class="state nominal">Nominal</span>
+      <span class="what">Model integration seam
+        <em>models/rsvqa.py wraps run_vqa(). Adapter drops in with no other change.</em></span></div>
+    <div class="ledger-row"><span class="state pending">Pending</span>
+      <span class="what">Trained RS-VQA adapter
+        <em>Training scripts and configs in place. No adapter produced yet — needs a GPU run.</em></span></div>
+    <div class="ledger-row"><span class="state pending">Pending</span>
+      <span class="what">LLM query parser
+        <em>Implemented and cached. Closes the seven cases the rule parser misses; needs an API key.</em></span></div>
+    <div class="ledger-row"><span class="state absent">Not started</span>
+      <span class="what">Optical + SAR fusion
+        <em>Phase 5 in the project plan. Deliberately not begun until VQA is solid end to end.</em></span></div>
+  </div>
+
+  <h2 class="sub">Known limits</h2>
+  <p class="lede">
+    The classical baselines use a visible-band greenness index as an NDVI
+    stand-in, because an RGB upload has no near-infrared band. Grounding and
+    change report grid cells, not segmentation masks. Confidence from token
+    probability is a rough signal, not a calibrated probability. Synthetic
+    scenes are for testing and offline demo — they are never benchmark results.
+  </p>
+  <p class="lede">
+    Naming what a system cannot do reads as rigour. Pretending otherwise gets
+    caught in the questions afterwards.
+  </p>
+
+<script>
+(async function(){
+  const box = document.getElementById("live");
+  try{
+    const h = await DRISHTIX_api.health();
+    const rows = [
+      ["Parser", h.parser, h.parser === "llm-v1" ? "nominal" : "pending"],
+      ["LLM backend", h.llm_backend, h.llm_backend === "offline" ? "pending" : "nominal"],
+      ["RS-VQA adapter", h.rsvqa_adapter_present ? "present" : "not trained yet",
+        h.rsvqa_adapter_present ? "nominal" : "pending"],
+      ["Models loaded", h.models_loaded.length ? h.models_loaded.join(", ")
+        : "classical baselines only", h.models_loaded.length ? "nominal" : "pending"],
+      ["Registered", h.models_registered.length + " models", "nominal"],
+      ["Scenes", h.scenes.length + " built-in", "nominal"]
+    ];
+    box.innerHTML = `<table class="data"><tbody>${rows.map(([k,v,s]) => `<tr>
+      <td class="num" style="width:190px">${k}</td>
+      <td>${v}</td>
+      <td style="width:110px"><span class="state ${s}">${s}</span></td>
+    </tr>`).join("")}</tbody></table>`;
+  }catch(e){ DRISHTIX_offline(box, e.message); }
+})();
+</script>
+</main>
+<footer>
+  <span>DrishtiX · SIH26167</span>
+  <span>Indian Space Research Organisation</span>
+  <span>Smart India Hackathon 2026</span>
+</footer>
+</body>
+</html>
