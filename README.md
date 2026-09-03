@@ -1,6 +1,6 @@
 # DrishtiX
 
-SIH 2026 · **SIH26167** · ISRO · Software · Idea deadline 20 September 2026
+SIH 2026 · **SIH26167** · ISRO · Software ·
 
 An interactive vision-language assistant for satellite imagery. Ask a question
 in plain English; the system works out what is being asked, checks the supplied
