@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Environments
+.env
+.venv/
+venv/
+
+# SatQuery runtime artifacts (all regenerable)
+.cache/            # LLM parse cache
+.data/             # dataset subsets - rebuild with `python -m data.subsets`
+.checkpoints/      # LoRA adapters - push to HF, do not commit
+eval/reports/      # benchmark output - regenerate with `make eval`
+demo/output/       # deck assets - regenerate with `make assets`
+demo/scenes/       # synthetic scene PNGs
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# training module (vendored from Person 1)
+training/data/
+training/outputs/
